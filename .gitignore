@@ -1,0 +1,26 @@
+# Rahasia
+.env
+.env.*
+!.env.example
+
+# Go
+/bin/
+*.exe
+*.test
+*.out
+coverage.out
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Editor dan OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cadangan lokal
+*.dump
+*.sql.bak
