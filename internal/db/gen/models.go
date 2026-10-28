@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type AuditLog struct {
@@ -21,6 +22,30 @@ type AuditLog struct {
 	Sesudah   []byte
 	Ip        *netip.Addr
 	Waktu     time.Time
+}
+
+type Project struct {
+	ID             uuid.UUID
+	PortfolioID    *uuid.UUID
+	Nama           string
+	PemilikID      uuid.UUID
+	Mulai          pgtype.Date
+	Selesai        pgtype.Date
+	Prioritas      string
+	StatusManual   *string
+	Anggaran       pgtype.Numeric
+	DibuatOleh     uuid.UUID
+	DibuatPada     time.Time
+	DiubahPada     time.Time
+	DiarsipkanPada *time.Time
+}
+
+type ProjectMember struct {
+	ProjectID       uuid.UUID
+	UserID          uuid.UUID
+	PeranProyek     string
+	DitambahkanPada time.Time
+	DitambahkanOleh *uuid.UUID
 }
 
 type Session struct {

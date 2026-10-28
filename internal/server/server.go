@@ -13,16 +13,18 @@ import (
 	"jwm/internal/auth"
 	"jwm/internal/config"
 	"jwm/internal/httpx"
+	"jwm/internal/project"
 	"jwm/internal/user"
 )
 
 // Deps adalah dependensi router.
 type Deps struct {
-	Config config.Config
-	Pool   *pgxpool.Pool
-	Auth   *auth.Service
-	User   *user.Service
-	Log    *slog.Logger
+	Config  config.Config
+	Pool    *pgxpool.Pool
+	Auth    *auth.Service
+	User    *user.Service
+	Project *project.Service
+	Log     *slog.Logger
 }
 
 // NewRouter membangun handler HTTP lengkap.
@@ -58,6 +60,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Use(auth.RequireAuth(d.Auth, cookies, d.Log), auth.RequirePasswordChanged)
 			users := user.NewHandler(d.User, d.Log)
 			r.Route("/users", users.Routes)
+			r.Route("/projects", project.NewHandler(d.Project, d.Log).Routes)
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs))
 				users.AdminRoutes(r)

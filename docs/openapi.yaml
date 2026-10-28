@@ -96,6 +96,174 @@ paths:
                 type: object
                 properties:
                   items: { type: array, items: { $ref: "#/components/schemas/UserSummary" } }
+  /projects:
+    description: |
+      Hak efektif = irisan peran global dan peran proyek (SPEC bagian 2).
+      Admin dan PMO mengelola semua proyek tanpa keanggotaan. Non-anggota
+      mendapat 404 agar keberadaan proyek tidak bocor.
+    get:
+      summary: Proyek yang dapat dilihat pengguna
+      parameters:
+        - { name: arsip, in: query, description: true untuk proyek diarsipkan, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Project" } }
+    post:
+      summary: Buat proyek (Admin, PMO, Project Manager). Pembuat menjadi manager.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama]
+              properties:
+                nama: { type: string, maxLength: 200 }
+                mulai: { type: [string, "null"], format: date }
+                selesai: { type: [string, "null"], format: date }
+                prioritas: { $ref: "#/components/schemas/Priority" }
+                pemilik_id:
+                  type: string
+                  format: uuid
+                  description: Default pembuat. Harus pengguna aktif berperan PM, PMO, atau Admin; ditambahkan sebagai manager.
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { description: Peran global tidak boleh membuat proyek }
+        "422": { description: validation }
+  /projects/{id}:
+    parameters: [{ $ref: "#/components/parameters/ProjectID" }]
+    get:
+      summary: Detail proyek
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404": { description: Tidak ada atau tidak punya akses }
+    patch:
+      summary: Ubah proyek (manager efektif). Field tidak dikirim tidak berubah; null menghapus tanggal.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nama: { type: string }
+                mulai: { type: [string, "null"], format: date }
+                selesai: { type: [string, "null"], format: date }
+                prioritas: { $ref: "#/components/schemas/Priority" }
+                pemilik_id: { type: string, format: uuid, description: Harus anggota manager }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { description: Bukan manager efektif }
+        "404": { description: Tidak ada atau tidak punya akses }
+        "409": { description: project_archived }
+        "422": { description: validation }
+  /projects/{id}/archive:
+    post:
+      summary: Arsipkan proyek (manager efektif). Proyek arsip hanya-baca.
+      parameters: [{ $ref: "#/components/parameters/ProjectID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{id}/unarchive:
+    post:
+      summary: Pulihkan proyek dari arsip (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/ProjectID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{id}/members:
+    parameters: [{ $ref: "#/components/parameters/ProjectID" }]
+    get:
+      summary: Anggota proyek (semua yang punya akses baca)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberList" }
+    post:
+      summary: Tambah anggota (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [user_id, peran_proyek]
+              properties:
+                user_id: { type: string, format: uuid }
+                peran_proyek: { $ref: "#/components/schemas/ProjectRole" }
+      responses:
+        "201":
+          description: Ditambahkan; badan berisi daftar anggota terbaru
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberList" }
+        "409": { description: "already_member, project_archived" }
+        "422": { description: "role_exceeds_global (Viewer global hanya viewer; Member global paling tinggi member), validation" }
+  /projects/{id}/members/{userId}:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectID" }
+      - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Ubah peran proyek anggota (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [peran_proyek]
+              properties:
+                peran_proyek: { $ref: "#/components/schemas/ProjectRole" }
+      responses:
+        "200":
+          description: OK; badan berisi daftar anggota terbaru
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberList" }
+        "404": { description: member_not_found }
+        "409": { description: "owner_member (pemilik harus tetap manager), last_manager" }
+        "422": { description: role_exceeds_global }
+    delete:
+      summary: Keluarkan anggota (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dikeluarkan }
+        "404": { description: member_not_found }
+        "409": { description: "owner_member, last_manager" }
   /admin/users:
     description: |
       Semua rute /admin hanya untuk peran Admin dan dapat dibatasi per jaringan
@@ -241,6 +409,11 @@ components:
       in: header
       required: true
       schema: { type: string }
+    ProjectID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     UserID:
       name: id
       in: path
@@ -279,6 +452,48 @@ components:
     Role:
       type: string
       enum: [admin, pmo, project_manager, member, viewer]
+    Priority:
+      type: string
+      enum: [rendah, sedang, tinggi, kritis]
+      default: sedang
+    ProjectRole:
+      type: string
+      enum: [manager, member, viewer]
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        pemilik_id: { type: string, format: uuid }
+        pemilik_nama: { type: string }
+        mulai: { type: [string, "null"], format: date }
+        selesai: { type: [string, "null"], format: date }
+        prioritas: { $ref: "#/components/schemas/Priority" }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+        diarsipkan_pada: { type: [string, "null"], format: date-time }
+        peran_saya:
+          $ref: "#/components/schemas/ProjectRole"
+          description: Hak efektif pengguna yang meminta
+    MemberList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: string, format: uuid }
+              nama: { type: string }
+              email: { type: string }
+              peran_global: { $ref: "#/components/schemas/Role" }
+              aktif: { type: boolean }
+              peran_proyek: { $ref: "#/components/schemas/ProjectRole" }
+              peran_efektif:
+                type: string
+                enum: [manager, member, viewer, ""]
+                description: Irisan peran global dan peran proyek; kosong bila akun nonaktif
+              ditambahkan_pada: { type: string, format: date-time }
     UserSummary:
       type: object
       properties:
