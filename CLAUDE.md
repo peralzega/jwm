@@ -99,19 +99,24 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
   skrip yang hanya jalan di bash. Skrip pembantu ditulis sebagai `.ps1` di `scripts/`.
 - Gunakan `filepath.Join`, bukan penggabungan string untuk jalur berkas.
 - Line ending repositori adalah LF (lihat `.gitattributes`).
-- `make` tidak tersedia bawaan di Windows. Daftar perintah di bawah adalah
-  target logis. Pada tugas pertama, buat `Taskfile.yml` atau skrip `scripts/*.ps1`
-  yang menjalankan perintah yang sama, lalu perbarui bagian ini.
+- `make` tidak tersedia bawaan di Windows. Perintah dijalankan lewat skrip
+  `scripts/*.ps1`. Skrip memuat `.env` otomatis (`scripts/env.ps1`).
+- sqlc, goose, dan govulncheck dipasang sebagai direktif `tool` di `go.mod`
+  dan dipanggil dengan `go tool <nama>`. Tidak perlu instalasi global.
 
 ## Perintah umum
 
 ```
-make dev        # jalankan api + web
-make test       # go test ./... dan vitest
-make lint       # golangci-lint dan eslint
-make migrate    # terapkan migrasi goose
-make sqlc       # hasilkan kode query
+.\scripts\dev.ps1               # jalankan api (web menyusul di M1e)
+.\scripts\test.ps1              # go test ./... dan vitest
+.\scripts\lint.ps1              # gofmt, go vet, golangci-lint, govulncheck, eslint
+.\scripts\migrate.ps1 [up|down|status]   # migrasi goose
+.\scripts\sqlc.ps1              # hasilkan kode query
+.\scripts\seed.ps1              # buat Admin pertama
 ```
+
+Tes integrasi butuh `TEST_DATABASE_URL` (PostgreSQL 18 lokal) atau Docker.
+Tanpa keduanya tes integrasi di-skip; jangan menyatakan selesai dalam kondisi itu.
 
 ## Definition of Done
 

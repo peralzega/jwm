@@ -1,0 +1,120 @@
+openapi: 3.1.0
+info:
+  title: JWM API
+  version: 0.1.0
+  description: |
+    API JIEP Work Management. Autentikasi memakai cookie sesi `__Host-jwm_session`.
+    Semua metode selain GET/HEAD/OPTIONS pada rute terautentikasi wajib
+    menyertakan header `X-CSRF-Token` (lihat docs/adr/0001-sesi-dan-csrf.md).
+servers:
+  - url: /api/v1
+paths:
+  /auth/login:
+    post:
+      summary: Masuk dengan email dan kata sandi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, maxLength: 254 }
+                password: { type: string }
+      responses:
+        "200":
+          description: Berhasil. Cookie sesi diset.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "401":
+          description: Kredensial salah, akun nonaktif, atau terkunci (respons seragam).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Batas laju per IP terlampaui. Header Retry-After disertakan.
+  /auth/me:
+    get:
+      summary: Pengguna saat ini dan token CSRF
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+          description: OK
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /auth/logout:
+    post:
+      summary: Keluar dan hapus sesi saat ini
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Berhasil }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: Token CSRF tidak valid }
+  /auth/password:
+    post:
+      summary: Ganti kata sandi sendiri
+      description: Mencabut semua sesi pengguna, lalu membuat sesi baru untuk perangkat ini.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sandi_lama, sandi_baru]
+              properties:
+                sandi_lama: { type: string }
+                sandi_baru: { type: string, minLength: 12, maxLength: 128 }
+      responses:
+        "200":
+          description: Berhasil. Cookie sesi baru diset.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: Sandi lama salah atau token CSRF tidak valid }
+        "422": { description: Sandi baru melanggar kebijakan }
+        "429": { description: Batas laju per IP terlampaui }
+components:
+  parameters:
+    CSRF:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string }
+  responses:
+    Unauthenticated:
+      description: Sesi tidak ada atau kedaluwarsa
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Kode galat, mis. invalid_credentials, unauthenticated, csrf, password_change_required
+        message: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        email: { type: string }
+        peran: { type: string, enum: [admin, pmo, project_manager, member, viewer] }
+        wajib_ganti_sandi:
+          type: boolean
+          description: Bila true, semua rute selain /auth/me, /auth/password, dan /auth/logout menjawab 403 password_change_required.
+    SessionResponse:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        csrf_token: { type: string }
