@@ -15,6 +15,7 @@ import (
 	"jwm/internal/config"
 	"jwm/internal/db"
 	"jwm/internal/server"
+	"jwm/internal/user"
 )
 
 func main() {
@@ -54,8 +55,10 @@ func run(log *slog.Logger) error {
 	go cleanupSessions(ctx, authSvc, log)
 
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           server.NewRouter(server.Deps{Config: cfg, Pool: pool, Auth: authSvc, Log: log}),
+		Addr: cfg.HTTPAddr,
+		Handler: server.NewRouter(server.Deps{
+			Config: cfg, Pool: pool, Auth: authSvc, User: user.NewService(pool, hasher), Log: log,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

@@ -13,6 +13,7 @@ import (
 	"jwm/internal/auth"
 	"jwm/internal/config"
 	"jwm/internal/httpx"
+	"jwm/internal/user"
 )
 
 // Deps adalah dependensi router.
@@ -20,6 +21,7 @@ type Deps struct {
 	Config config.Config
 	Pool   *pgxpool.Pool
 	Auth   *auth.Service
+	User   *user.Service
 	Log    *slog.Logger
 }
 
@@ -54,7 +56,12 @@ func NewRouter(d Deps) http.Handler {
 		// Semua rute lain: wajib login dan sandi sudah diganti.
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(d.Auth, cookies, d.Log), auth.RequirePasswordChanged)
-			// M1b: r.With(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs)).Route("/admin", ...)
+			users := user.NewHandler(d.User, d.Log)
+			r.Route("/users", users.Routes)
+			r.Route("/admin", func(r chi.Router) {
+				r.Use(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs))
+				users.AdminRoutes(r)
+			})
 		})
 	})
 

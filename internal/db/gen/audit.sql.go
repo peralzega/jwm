@@ -40,6 +40,60 @@ func (q *Queries) InsertAudit(ctx context.Context, arg InsertAuditParams) error 
 	return err
 }
 
+const listAudit = `-- name: ListAudit :many
+SELECT id, aktor_id, entitas, entitas_id, aksi, sebelum, sesudah, ip, waktu FROM audit_log
+WHERE ($1::text IS NULL OR entitas = $1)
+  AND ($2::text IS NULL OR entitas_id = $2)
+  AND ($3::uuid IS NULL OR aktor_id = $3)
+  AND ($4::bigint IS NULL OR id < $4)
+ORDER BY id DESC
+LIMIT $5
+`
+
+type ListAuditParams struct {
+	Entitas   *string
+	EntitasID *string
+	AktorID   *uuid.UUID
+	SebelumID *int64
+	Batas     int32
+}
+
+func (q *Queries) ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAudit,
+		arg.Entitas,
+		arg.EntitasID,
+		arg.AktorID,
+		arg.SebelumID,
+		arg.Batas,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.AktorID,
+			&i.Entitas,
+			&i.EntitasID,
+			&i.Aksi,
+			&i.Sebelum,
+			&i.Sesudah,
+			&i.Ip,
+			&i.Waktu,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuditByEntity = `-- name: ListAuditByEntity :many
 SELECT id, aktor_id, entitas, entitas_id, aksi, sebelum, sesudah, ip, waktu FROM audit_log
 WHERE entitas = $1 AND entitas_id = $2

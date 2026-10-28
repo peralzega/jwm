@@ -12,6 +12,38 @@ import (
 	"github.com/google/uuid"
 )
 
+const adminResetPassword = `-- name: AdminResetPassword :one
+UPDATE users
+SET password_hash = $2, wajib_ganti_sandi = true, gagal_login = 0, terkunci_hingga = NULL, diubah_pada = now()
+WHERE id = $1
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+`
+
+type AdminResetPasswordParams struct {
+	ID           uuid.UUID
+	PasswordHash string
+}
+
+func (q *Queries) AdminResetPassword(ctx context.Context, arg AdminResetPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, adminResetPassword, arg.ID, arg.PasswordHash)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nama,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Peran,
+		&i.Aktif,
+		&i.WajibGantiSandi,
+		&i.GagalLogin,
+		&i.TerkunciHingga,
+		&i.LoginTerakhir,
+		&i.DibuatPada,
+		&i.DiubahPada,
+	)
+	return i, err
+}
+
 const advisoryXactLock = `-- name: AdvisoryXactLock :exec
 SELECT pg_advisory_xact_lock($1)
 `
@@ -131,6 +163,30 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
+const getUserForUpdate = `-- name: GetUserForUpdate :one
+SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserForUpdate, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nama,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Peran,
+		&i.Aktif,
+		&i.WajibGantiSandi,
+		&i.GagalLogin,
+		&i.TerkunciHingga,
+		&i.LoginTerakhir,
+		&i.DibuatPada,
+		&i.DiubahPada,
+	)
+	return i, err
+}
+
 const incrementLoginFailures = `-- name: IncrementLoginFailures :one
 UPDATE users
 SET gagal_login = gagal_login + 1, diubah_pada = now()
@@ -143,6 +199,81 @@ func (q *Queries) IncrementLoginFailures(ctx context.Context, id uuid.UUID) (int
 	var gagal_login int32
 	err := row.Scan(&gagal_login)
 	return gagal_login, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada FROM users
+WHERE ($1::text IS NULL
+       OR nama ILIKE '%' || $1 || '%'
+       OR email ILIKE '%' || $1 || '%')
+  AND ($2::text IS NULL OR peran = $2)
+  AND ($3::boolean IS NULL OR aktif = $3)
+ORDER BY lower(nama), id
+LIMIT 500
+`
+
+type ListUsersParams struct {
+	Q     *string
+	Peran *string
+	Aktif *bool
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Q, arg.Peran, arg.Aktif)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Nama,
+			&i.Email,
+			&i.PasswordHash,
+			&i.Peran,
+			&i.Aktif,
+			&i.WajibGantiSandi,
+			&i.GagalLogin,
+			&i.TerkunciHingga,
+			&i.LoginTerakhir,
+			&i.DibuatPada,
+			&i.DiubahPada,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockActiveAdmins = `-- name: LockActiveAdmins :many
+SELECT id FROM users WHERE peran = 'admin' AND aktif ORDER BY id FOR UPDATE
+`
+
+// Mengunci baris semua Admin aktif (urut id) untuk pemeriksaan "Admin aktif terakhir".
+func (q *Queries) LockActiveAdmins(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockActiveAdmins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockUserUntil = `-- name: LockUserUntil :exec
@@ -170,6 +301,97 @@ func (q *Queries) RecordLoginSuccess(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const searchActiveUsers = `-- name: SearchActiveUsers :many
+SELECT id, nama, email FROM users
+WHERE aktif
+  AND (nama ILIKE '%' || $1::text || '%' OR email ILIKE '%' || $1::text || '%')
+ORDER BY lower(nama), id
+LIMIT 20
+`
+
+type SearchActiveUsersRow struct {
+	ID    uuid.UUID
+	Nama  string
+	Email string
+}
+
+func (q *Queries) SearchActiveUsers(ctx context.Context, q_ string) ([]SearchActiveUsersRow, error) {
+	rows, err := q.db.Query(ctx, searchActiveUsers, q_)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchActiveUsersRow
+	for rows.Next() {
+		var i SearchActiveUsersRow
+		if err := rows.Scan(&i.ID, &i.Nama, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setUserActive = `-- name: SetUserActive :one
+UPDATE users SET aktif = $2, diubah_pada = now()
+WHERE id = $1
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+`
+
+type SetUserActiveParams struct {
+	ID    uuid.UUID
+	Aktif bool
+}
+
+func (q *Queries) SetUserActive(ctx context.Context, arg SetUserActiveParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserActive, arg.ID, arg.Aktif)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nama,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Peran,
+		&i.Aktif,
+		&i.WajibGantiSandi,
+		&i.GagalLogin,
+		&i.TerkunciHingga,
+		&i.LoginTerakhir,
+		&i.DibuatPada,
+		&i.DiubahPada,
+	)
+	return i, err
+}
+
+const unlockUser = `-- name: UnlockUser :one
+UPDATE users SET gagal_login = 0, terkunci_hingga = NULL, diubah_pada = now()
+WHERE id = $1
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+`
+
+func (q *Queries) UnlockUser(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, unlockUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nama,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Peran,
+		&i.Aktif,
+		&i.WajibGantiSandi,
+		&i.GagalLogin,
+		&i.TerkunciHingga,
+		&i.LoginTerakhir,
+		&i.DibuatPada,
+		&i.DiubahPada,
+	)
+	return i, err
+}
+
 const updatePassword = `-- name: UpdatePassword :exec
 UPDATE users
 SET password_hash = $2, wajib_ganti_sandi = $3, diubah_pada = now()
@@ -185,4 +407,42 @@ type UpdatePasswordParams struct {
 func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error {
 	_, err := q.db.Exec(ctx, updatePassword, arg.ID, arg.PasswordHash, arg.WajibGantiSandi)
 	return err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET nama = $2, email = $3, peran = $4, diubah_pada = now()
+WHERE id = $1
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+`
+
+type UpdateUserProfileParams struct {
+	ID    uuid.UUID
+	Nama  string
+	Email string
+	Peran string
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.ID,
+		arg.Nama,
+		arg.Email,
+		arg.Peran,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nama,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Peran,
+		&i.Aktif,
+		&i.WajibGantiSandi,
+		&i.GagalLogin,
+		&i.TerkunciHingga,
+		&i.LoginTerakhir,
+		&i.DibuatPada,
+		&i.DiubahPada,
+	)
+	return i, err
 }

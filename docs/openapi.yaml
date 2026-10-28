@@ -81,6 +81,159 @@ paths:
         "403": { description: Sandi lama salah atau token CSRF tidak valid }
         "422": { description: Sandi baru melanggar kebijakan }
         "429": { description: Batas laju per IP terlampaui }
+  /users:
+    get:
+      summary: Cari pengguna aktif (untuk pemilih anggota)
+      description: Terbuka bagi semua pengguna login. Minimal 2 karakter; maksimal 20 hasil.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, maxLength: 200 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/UserSummary" } }
+  /admin/users:
+    description: |
+      Semua rute /admin hanya untuk peran Admin dan dapat dibatasi per jaringan
+      lewat ADMIN_ALLOWED_CIDRS (403 forbidden_network).
+    get:
+      summary: Daftar pengguna
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: peran, in: query, schema: { $ref: "#/components/schemas/Role" } }
+        - { name: aktif, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminUser" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Buat akun. Peran default viewer. Sandi sementara dikembalikan sekali.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama, email]
+              properties:
+                nama: { type: string, maxLength: 200 }
+                email: { type: string }
+                peran: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithTempPassword" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { description: email_taken }
+        "422": { description: validation }
+  /admin/users/{id}:
+    parameters: [{ $ref: "#/components/parameters/UserID" }]
+    get:
+      summary: Detail pengguna
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "404": { description: not_found }
+    patch:
+      summary: Ubah nama, email, atau peran
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nama: { type: string }
+                email: { type: string }
+                peran: { $ref: "#/components/schemas/Role" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "409": { description: "email_taken, atau last_admin (Admin aktif terakhir tidak dapat diturunkan)" }
+        "422": { description: validation }
+  /admin/users/{id}/deactivate:
+    post:
+      summary: Nonaktifkan akun dan cabut semua sesinya
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "409": { description: "last_admin, atau self_action (tidak dapat menonaktifkan diri sendiri)" }
+  /admin/users/{id}/activate:
+    post:
+      summary: Aktifkan kembali akun
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/users/{id}/reset-password:
+    post:
+      summary: Buat sandi sementara baru, buka kunci, cabut semua sesi
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK. Sandi sementara dikembalikan sekali.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithTempPassword" }
+        "409": { description: self_action (Admin memakai /auth/password untuk dirinya) }
+  /admin/users/{id}/unlock:
+    post:
+      summary: Buka kunci login dan reset hitungan gagal
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/audit-log:
+    get:
+      summary: Audit log, terbaru lebih dulu, paginasi kursor
+      parameters:
+        - { name: entitas, in: query, schema: { type: string } }
+        - { name: entitas_id, in: query, schema: { type: string } }
+        - { name: aktor_id, in: query, schema: { type: string, format: uuid } }
+        - { name: kursor, in: query, description: Nilai kursor_berikut dari halaman sebelumnya, schema: { type: integer } }
+        - { name: batas, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AuditEntry" } }
+                  kursor_berikut: { type: [integer, "null"] }
 components:
   parameters:
     CSRF:
@@ -88,7 +241,17 @@ components:
       in: header
       required: true
       schema: { type: string }
+    UserID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   responses:
+    Forbidden:
+      description: Bukan Admin (forbidden) atau di luar jaringan yang diizinkan (forbidden_network)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     Unauthenticated:
       description: Sesi tidak ada atau kedaluwarsa
       content:
@@ -113,6 +276,46 @@ components:
         wajib_ganti_sandi:
           type: boolean
           description: Bila true, semua rute selain /auth/me, /auth/password, dan /auth/logout menjawab 403 password_change_required.
+    Role:
+      type: string
+      enum: [admin, pmo, project_manager, member, viewer]
+    UserSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        email: { type: string }
+    AdminUser:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        email: { type: string }
+        peran: { $ref: "#/components/schemas/Role" }
+        aktif: { type: boolean }
+        wajib_ganti_sandi: { type: boolean }
+        terkunci_hingga: { type: [string, "null"], format: date-time }
+        login_terakhir: { type: [string, "null"], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
+    UserWithTempPassword:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/AdminUser" }
+        sandi_sementara:
+          type: string
+          description: Hanya ditampilkan sekali. Tidak disimpan dan tidak masuk audit.
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        aktor_id: { type: [string, "null"], format: uuid }
+        entitas: { type: string }
+        entitas_id: { type: [string, "null"] }
+        aksi: { type: string }
+        sebelum: { type: [object, "null"] }
+        sesudah: { type: [object, "null"] }
+        ip: { type: [string, "null"] }
+        waktu: { type: string, format: date-time }
     SessionResponse:
       type: object
       properties:

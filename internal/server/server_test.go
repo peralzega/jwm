@@ -14,6 +14,7 @@ import (
 	"jwm/internal/auth"
 	"jwm/internal/config"
 	"jwm/internal/testutil"
+	"jwm/internal/user"
 )
 
 func TestRouter(t *testing.T) {
@@ -26,7 +27,9 @@ func TestRouter(t *testing.T) {
 		SessionIdleTTL: time.Hour, SessionAbsoluteTTL: time.Hour, MaxFailures: 5,
 		LockoutBase: time.Minute, LockoutMax: time.Hour,
 	}, log)
-	srv := httptest.NewServer(NewRouter(Deps{Config: cfg, Pool: pool, Auth: svc, Log: log}))
+	srv := httptest.NewServer(NewRouter(Deps{
+		Config: cfg, Pool: pool, Auth: svc, User: user.NewService(pool, hasher), Log: log,
+	}))
 	t.Cleanup(srv.Close)
 
 	tests := []struct {
