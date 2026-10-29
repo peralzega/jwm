@@ -35,7 +35,7 @@ type memberAudit struct {
 
 // ListMembers mengembalikan anggota proyek. Semua yang punya akses baca boleh melihat.
 func (s *Service) ListMembers(ctx context.Context, actor auth.Principal, projectID uuid.UUID) ([]Member, error) {
-	if _, err := access(ctx, s.q, actor, projectID, RoleViewer, false); err != nil {
+	if _, err := Access(ctx, s.q, actor, projectID, RoleViewer, false); err != nil {
 		return nil, err
 	}
 	rows, err := s.q.ListProjectMembers(ctx, projectID)

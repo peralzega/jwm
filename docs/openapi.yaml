@@ -264,6 +264,307 @@ paths:
         "204": { description: Dikeluarkan }
         "404": { description: member_not_found }
         "409": { description: "owner_member, last_manager" }
+  /projects/{id}/boards:
+    parameters: [{ $ref: "#/components/parameters/ProjectID" }]
+    get:
+      summary: Board aktif pada proyek (akses baca)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Board" } }
+    post:
+      summary: Buat board (manager efektif)
+      description: Board baru berisi grup "Tugas", kolom status berlabel bawaan, dan kolom person "Penanggung jawab".
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama]
+              properties:
+                nama: { type: string, maxLength: 200 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardDetail" }
+  /boards/{id}:
+    parameters: [{ $ref: "#/components/parameters/BoardID" }]
+    get:
+      summary: Board beserta kolom dan grup
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardDetail" }
+        "404": { description: Tidak ada, terhapus, atau tidak punya akses }
+    patch:
+      summary: Ubah nama atau urutan board (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nama: { type: string }
+                urutan: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardDetail" }
+    delete:
+      summary: Hapus lunak board (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+  /boards/{id}/columns:
+    post:
+      summary: Tambah kolom bertipe (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/BoardID" }, { $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [tipe, judul]
+              properties:
+                tipe: { $ref: "#/components/schemas/ColumnType" }
+                judul: { type: string, maxLength: 100 }
+                konfigurasi:
+                  type: object
+                  description: |
+                    status: {"labels":[{"id","judul","warna"}]} (kosong = label bawaan);
+                    number: {"satuan"}; tipe lain tanpa konfigurasi.
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Column" }
+        "422": { description: validation }
+  /columns/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      summary: Ubah judul, urutan, atau konfigurasi kolom (tipe tidak dapat diubah)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                judul: { type: string }
+                urutan: { type: number }
+                konfigurasi: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Column" }
+        "409": { description: label_in_use (label status masih dipakai item) }
+    delete:
+      summary: Hapus lunak kolom; nilai sel tetap tersimpan tetapi tidak ditampilkan
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+  /boards/{id}/groups:
+    post:
+      summary: Tambah grup (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/BoardID" }, { $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [judul]
+              properties:
+                judul: { type: string, maxLength: 100 }
+                warna: { $ref: "#/components/schemas/Color" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+  /groups/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      summary: Ubah judul, warna, atau urutan grup (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                judul: { type: string }
+                warna: { $ref: "#/components/schemas/Color" }
+                urutan: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+    delete:
+      summary: Hapus lunak grup kosong (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "409": { description: "group_not_empty, last_group" }
+  /boards/{id}/items:
+    parameters: [{ $ref: "#/components/parameters/BoardID" }]
+    get:
+      summary: Item aktif, paginasi kursor (urut id)
+      description: Klien mengurutkan tampilan menurut urutan grup lalu urutan item.
+      parameters:
+        - { name: group_id, in: query, schema: { type: string, format: uuid } }
+        - { name: kursor, in: query, description: Nilai kursor_berikut halaman sebelumnya, schema: { type: string, format: uuid } }
+        - { name: batas, in: query, schema: { type: integer, default: 200, maximum: 1000 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Item" } }
+                  kursor_berikut: { type: [string, "null"], format: uuid }
+    post:
+      summary: Buat item di akhir grup (member efektif ke atas)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [group_id, judul]
+              properties:
+                group_id: { type: string, format: uuid }
+                judul: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+  /items/{id}:
+    parameters: [{ $ref: "#/components/parameters/ItemID" }]
+    description: |
+      Hak ubah: manager untuk semua item; member hanya item yang ia buat atau yang
+      menugaskannya di kolom person. Hak hapus: manager, atau member untuk item buatannya.
+    get:
+      summary: Detail item
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+    patch:
+      summary: Ubah judul item
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [judul]
+              properties:
+                judul: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "403": { description: Tidak berhak mengubah item ini }
+    delete:
+      summary: Hapus lunak item
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "403": { description: Tidak berhak menghapus item ini }
+  /items/{id}/move:
+    post:
+      summary: Pindah item ke grup (di board yang sama), tepat setelah item acuan
+      parameters: [{ $ref: "#/components/parameters/ItemID" }, { $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [group_id]
+              properties:
+                group_id: { type: string, format: uuid }
+                setelah_item_id:
+                  type: [string, "null"]
+                  format: uuid
+                  description: Kosong atau null = posisi paling atas grup
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "422": { description: Grup atau item acuan tidak valid }
+  /items/{id}/values/{columnId}:
+    put:
+      summary: Isi atau hapus (null) satu sel item
+      parameters:
+        - { $ref: "#/components/parameters/ItemID" }
+        - { name: columnId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/CSRF" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nilai]
+              properties:
+                nilai:
+                  description: |
+                    text: string (≤2000); status: id label; priority: rendah|sedang|tinggi|kritis;
+                    person: array UUID anggota proyek (≤20); date: "YYYY-MM-DD";
+                    timeline: {"mulai","selesai"}; number: angka; progress: bulat 0–100;
+                    dependency: hanya-baca (M4). null menghapus sel.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "422": { description: "validation, read_only_column" }
   /admin/users:
     description: |
       Semua rute /admin hanya untuk peran Admin dan dapat dibatasi per jaringan
@@ -414,6 +715,16 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    BoardID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ItemID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     UserID:
       name: id
       in: path
@@ -475,6 +786,61 @@ components:
         peran_saya:
           $ref: "#/components/schemas/ProjectRole"
           description: Hak efektif pengguna yang meminta
+    ColumnType:
+      type: string
+      enum: [text, status, person, date, timeline, number, progress, priority, dependency]
+    Color:
+      type: string
+      enum: [abu, biru, hijau, kuning, oranye, merah, ungu, tosca, merah_muda]
+    Board:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        nama: { type: string }
+        urutan: { type: number }
+    Column:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        tipe: { $ref: "#/components/schemas/ColumnType" }
+        judul: { type: string }
+        urutan: { type: number }
+        konfigurasi: { type: object }
+    Group:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        judul: { type: string }
+        warna: { $ref: "#/components/schemas/Color" }
+        urutan: { type: number }
+    BoardDetail:
+      allOf:
+        - { $ref: "#/components/schemas/Board" }
+        - type: object
+          properties:
+            kolom: { type: array, items: { $ref: "#/components/schemas/Column" } }
+            grup: { type: array, items: { $ref: "#/components/schemas/Group" } }
+            peran_saya: { $ref: "#/components/schemas/ProjectRole" }
+    Item:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+        judul: { type: string }
+        urutan: { type: number }
+        dibuat_oleh: { type: string, format: uuid }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+        nilai:
+          type: object
+          description: Peta column_id ke nilai sel (kolom terhapus tidak ditampilkan)
+          additionalProperties: true
+        bisa_ubah: { type: boolean, description: Hak pengguna yang meminta untuk mengubah item ini }
+        bisa_hapus: { type: boolean }
     MemberList:
       type: object
       properties:

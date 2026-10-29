@@ -96,10 +96,10 @@ func memberRole(s *string) Role {
 	return r
 }
 
-// access membaca hak efektif pelaku pada proyek dari database (bukan dari
+// Access membaca hak efektif pelaku pada proyek dari database (bukan dari
 // Principal yang dibaca saat autentikasi), lalu memeriksa hak minimal.
 // write=true menolak proyek yang diarsipkan.
-func access(ctx context.Context, q *dbgen.Queries, actor auth.Principal, projectID uuid.UUID, need Role, write bool) (Role, error) {
+func Access(ctx context.Context, q *dbgen.Queries, actor auth.Principal, projectID uuid.UUID, need Role, write bool) (Role, error) {
 	row, err := q.GetProjectAccess(ctx, dbgen.GetProjectAccessParams{UserID: actor.User.ID, ProjectID: projectID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RoleNone, ErrNotFound
@@ -237,7 +237,7 @@ func toProject(p dbgen.Project, pemilikNama string, peran Role) Project {
 
 // Get mengembalikan proyek bila pelaku punya akses baca.
 func (s *Service) Get(ctx context.Context, actor auth.Principal, id uuid.UUID) (Project, error) {
-	eff, err := access(ctx, s.q, actor, id, RoleViewer, false)
+	eff, err := Access(ctx, s.q, actor, id, RoleViewer, false)
 	if err != nil {
 		return Project{}, err
 	}
@@ -399,7 +399,7 @@ func lockProject(ctx context.Context, q *dbgen.Queries, actor auth.Principal, id
 	if err != nil {
 		return dbgen.Project{}, fmt.Errorf("kunci proyek: %w", err)
 	}
-	if _, err := access(ctx, q, actor, id, RoleManager, true); err != nil {
+	if _, err := Access(ctx, q, actor, id, RoleManager, true); err != nil {
 		return dbgen.Project{}, err
 	}
 	return p, nil
@@ -416,7 +416,7 @@ func (s *Service) SetArchived(ctx context.Context, actor auth.Principal, id uuid
 		if err != nil {
 			return fmt.Errorf("kunci proyek: %w", err)
 		}
-		if _, err := access(ctx, q, actor, id, RoleManager, false); err != nil {
+		if _, err := Access(ctx, q, actor, id, RoleManager, false); err != nil {
 			return err
 		}
 		if (before.DiarsipkanPada != nil) == arsip {

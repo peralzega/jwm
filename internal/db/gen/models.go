@@ -24,6 +24,58 @@ type AuditLog struct {
 	Waktu     time.Time
 }
 
+type Board struct {
+	ID          uuid.UUID
+	ProjectID   uuid.UUID
+	Nama        string
+	Urutan      float64
+	DibuatPada  time.Time
+	DiubahPada  time.Time
+	DihapusPada *time.Time
+}
+
+type BoardColumn struct {
+	ID              uuid.UUID
+	BoardID         uuid.UUID
+	Tipe            string
+	Judul           string
+	Urutan          float64
+	KonfigurasiJson []byte
+	DibuatPada      time.Time
+	DihapusPada     *time.Time
+}
+
+type Group struct {
+	ID          uuid.UUID
+	BoardID     uuid.UUID
+	Judul       string
+	Warna       string
+	Urutan      float64
+	DibuatPada  time.Time
+	DihapusPada *time.Time
+}
+
+type Item struct {
+	ID          uuid.UUID
+	BoardID     uuid.UUID
+	GroupID     uuid.UUID
+	Judul       string
+	Urutan      float64
+	IndukID     *uuid.UUID
+	DibuatOleh  uuid.UUID
+	DibuatPada  time.Time
+	DiubahPada  time.Time
+	DihapusPada *time.Time
+}
+
+type ItemValue struct {
+	ItemID     uuid.UUID
+	ColumnID   uuid.UUID
+	NilaiJson  []byte
+	DiubahOleh *uuid.UUID
+	DiubahPada time.Time
+}
+
 type Project struct {
 	ID             uuid.UUID
 	PortfolioID    *uuid.UUID

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"jwm/internal/auth"
+	"jwm/internal/board"
 	"jwm/internal/config"
 	"jwm/internal/httpx"
 	"jwm/internal/project"
@@ -24,6 +25,7 @@ type Deps struct {
 	Auth    *auth.Service
 	User    *user.Service
 	Project *project.Service
+	Board   *board.Service
 	Log     *slog.Logger
 }
 
@@ -60,7 +62,12 @@ func NewRouter(d Deps) http.Handler {
 			r.Use(auth.RequireAuth(d.Auth, cookies, d.Log), auth.RequirePasswordChanged)
 			users := user.NewHandler(d.User, d.Log)
 			r.Route("/users", users.Routes)
-			r.Route("/projects", project.NewHandler(d.Project, d.Log).Routes)
+			boards := board.NewHandler(d.Board, d.Log)
+			r.Route("/projects", func(r chi.Router) {
+				project.NewHandler(d.Project, d.Log).Routes(r)
+				r.Route("/{id}/boards", boards.ProjectRoutes)
+			})
+			boards.Routes(r)
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs))
 				users.AdminRoutes(r)
