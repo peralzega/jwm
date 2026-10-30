@@ -208,6 +208,19 @@ func itemForWrite(ctx context.Context, q *dbgen.Queries, actor auth.Principal, i
 	return it, row.ProjectID, nil
 }
 
+// ItemForEdit mengunci item aktif dan memastikan pelaku berhak mengubahnya
+// pada proyek yang tidak diarsipkan. Dipakai paket schedule (dependensi).
+func ItemForEdit(ctx context.Context, q *dbgen.Queries, actor auth.Principal, id uuid.UUID) (dbgen.Item, error) {
+	it, _, err := itemForWrite(ctx, q, actor, id, false)
+	return it, err
+}
+
+// BoardForRead memastikan board aktif dan pelaku berhak membacanya.
+func BoardForRead(ctx context.Context, q *dbgen.Queries, actor auth.Principal, boardID uuid.UUID) error {
+	_, _, err := boardAccess(ctx, q, actor, boardID, RoleViewer, false)
+	return err
+}
+
 // UpdateItemTitle mengubah judul item.
 func (s *Service) UpdateItemTitle(ctx context.Context, actor auth.Principal, id uuid.UUID, judul string, meta auth.RequestMeta) (Item, error) {
 	judul, err := validText(judul, 500)

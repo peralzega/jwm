@@ -16,6 +16,7 @@ import (
 	"jwm/internal/config"
 	"jwm/internal/httpx"
 	"jwm/internal/project"
+	"jwm/internal/schedule"
 	"jwm/internal/user"
 )
 
@@ -27,7 +28,9 @@ type Deps struct {
 	User    *user.Service
 	Project *project.Service
 	Board   *board.Service
-	Log     *slog.Logger
+	// Schedule boleh nil pada tes paket lain; rutenya hanya dipasang bila diisi.
+	Schedule *schedule.Service
+	Log      *slog.Logger
 }
 
 // NewRouter membangun handler HTTP lengkap.
@@ -69,6 +72,9 @@ func NewRouter(d Deps) http.Handler {
 				r.Route("/{id}/boards", boards.ProjectRoutes)
 			})
 			boards.Routes(r)
+			if d.Schedule != nil {
+				schedule.NewHandler(d.Schedule, d.Log).Routes(r)
+			}
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs))
 				users.AdminRoutes(r)

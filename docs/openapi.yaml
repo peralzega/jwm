@@ -584,7 +584,7 @@ paths:
                     text: string (≤2000); status: id label; priority: rendah|sedang|tinggi|kritis;
                     person: array UUID anggota proyek (≤20); date: "YYYY-MM-DD";
                     timeline: {"mulai","selesai"}; number: angka; progress: bulat 0–100;
-                    dependency: hanya-baca (M4). null menghapus sel.
+                    dependency: hanya-baca (lewat /boards/{id}/dependencies). null menghapus sel.
       responses:
         "200":
           description: OK
@@ -592,6 +592,61 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Item" }
         "422": { description: "validation, read_only_column" }
+  /boards/{id}/dependencies:
+    parameters:
+      - { $ref: "#/components/parameters/BoardID" }
+    get:
+      summary: Daftar dependensi board (kedua item masih aktif)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Dependency" } }
+    post:
+      summary: Tambah dependensi FS antara dua item di board yang sama
+      description: |
+        Pelaku harus berhak mengubah kedua item. Ditolak bila antar-board, ke
+        diri sendiri, ganda (pasangan predecessor-successor unik), atau membentuk
+        siklus. M3 belum menggeser successor otomatis (menyusul di M4).
+      parameters:
+        - { $ref: "#/components/parameters/CSRF" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [predecessor_id, successor_id]
+              properties:
+                predecessor_id: { type: string, format: uuid }
+                successor_id: { type: string, format: uuid }
+                tipe: { type: string, enum: [FS], default: FS }
+                lag_hari: { type: integer, minimum: -365, maximum: 365, default: 0 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dependency" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "board atau item tidak ditemukan / bukan anggota" }
+        "409": { description: "dependency_exists, project_archived" }
+        "422": { description: "dependency_cycle (pesan menyebut kedua item), validation (diri sendiri, antar-board, tipe, lag)" }
+  /dependencies/{id}:
+    delete:
+      summary: Hapus dependensi (pelaku harus berhak mengubah kedua item)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/CSRF" }
+      responses:
+        "204": { description: Dihapus }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: not_found }
   /admin/users:
     description: |
       Semua rute /admin hanya untuk peran Admin dan dapat dibatasi per jaringan
@@ -872,6 +927,15 @@ components:
           additionalProperties: true
         bisa_ubah: { type: boolean, description: Hak pengguna yang meminta untuk mengubah item ini }
         bisa_hapus: { type: boolean }
+    Dependency:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        predecessor_id: { type: string, format: uuid }
+        successor_id: { type: string, format: uuid }
+        tipe: { type: string, enum: [FS] }
+        lag_hari: { type: integer }
     MemberList:
       type: object
       properties:
