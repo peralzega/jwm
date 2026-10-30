@@ -475,7 +475,10 @@ paths:
                 type: object
                 properties:
                   items: { type: array, items: { $ref: "#/components/schemas/Item" } }
-                  kursor_berikut: { type: [string, "null"], format: uuid }
+                  kursor_berikut:
+                    type: [string, "null"]
+                    format: uuid
+                    description: Null bila tidak ada item lagi; halaman yang tepat penuh di akhir data juga bernilai null.
     post:
       summary: Buat item di akhir grup (member efektif ke atas)
       parameters: [{ $ref: "#/components/parameters/CSRF" }]

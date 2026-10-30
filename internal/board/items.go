@@ -80,18 +80,24 @@ func (s *Service) ListItems(ctx context.Context, actor auth.Principal, boardID u
 		limit = DefaultItemLimit
 	}
 	limit = min(limit, MaxItemLimit)
+	// Ambil satu baris lebih untuk mengetahui apakah masih ada halaman berikutnya,
+	// sehingga halaman yang tepat penuh di akhir data tidak memberi kursor kosong.
 	rows, err := s.q.ListItems(ctx, dbgen.ListItemsParams{
-		UserID: actor.User.ID.String(), BoardID: boardID, GroupID: f.GroupID, SetelahID: f.Setelah, Batas: int32(limit),
+		UserID: actor.User.ID.String(), BoardID: boardID, GroupID: f.GroupID, SetelahID: f.Setelah, Batas: int32(limit + 1),
 	})
 	if err != nil {
 		return ItemPage{}, fmt.Errorf("daftar item: %w", err)
+	}
+	more := len(rows) > limit
+	if more {
+		rows = rows[:limit]
 	}
 	items, err := s.toItems(rows, eff, actor.User.ID)
 	if err != nil {
 		return ItemPage{}, err
 	}
 	page := ItemPage{Items: items}
-	if len(rows) == limit {
+	if more {
 		last := rows[len(rows)-1].ID
 		page.KursorBerikut = &last
 	}
