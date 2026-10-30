@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,10 @@ type Config struct {
 
 	AdminAllowedCIDRs []netip.Prefix
 	TrustedProxies    []netip.Prefix
+
+	// WebDir adalah folder hasil build frontend (berisi index.html). Bila tidak
+	// ada, server hanya menyajikan API.
+	WebDir string
 }
 
 // IsProduction bernilai true bila APP_ENV=production.
@@ -87,6 +92,7 @@ func Load(getenv func(string) string) (Config, error) {
 		LoginRatePerMinute: posInt("LOGIN_RATE_PER_MINUTE", "10"),
 		AdminAllowedCIDRs:  prefixes("ADMIN_ALLOWED_CIDRS"),
 		TrustedProxies:     prefixes("TRUSTED_PROXIES"),
+		WebDir:             get("WEB_DIR", filepath.Join("web", "dist")),
 	}
 
 	secure, err := strconv.ParseBool(get("SESSION_COOKIE_SECURE", "true"))

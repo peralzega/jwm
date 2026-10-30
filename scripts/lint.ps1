@@ -1,8 +1,8 @@
-# gofmt, go vet, golangci-lint (bila terpasang), dan govulncheck.
+# gofmt, go vet, golangci-lint (bila terpasang), govulncheck, lalu tsc dan eslint untuk web/.
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-$unformatted = gofmt -l .
+$unformatted = gofmt -l cmd internal
 if ($unformatted) {
     Write-Error "Berkas belum di-gofmt:`n$unformatted"
 }
@@ -22,5 +22,12 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if (Test-Path 'web/package.json') {
     Push-Location web
-    try { npx eslint .; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } } finally { Pop-Location }
+    try {
+        npx tsc --noEmit
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        npx eslint .
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } finally {
+        Pop-Location
+    }
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -75,7 +76,16 @@ func NewRouter(d Deps) http.Handler {
 		})
 	})
 
-	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
+	// Selain /api dan /healthz: frontend hasil build (bila WEB_DIR berisi index.html).
+	var web http.Handler
+	if webDirReady(d.Config.WebDir) {
+		web = spaHandler(d.Config.WebDir)
+	}
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		if web != nil && !strings.HasPrefix(r.URL.Path, "/api/") {
+			web.ServeHTTP(w, r)
+			return
+		}
 		httpx.WriteError(w, http.StatusNotFound, "not_found", "Sumber tidak ditemukan.")
 	})
 	return r
