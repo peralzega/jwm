@@ -11,9 +11,9 @@
   --color-surface: #ffffff;
   --color-line: #dfe3e8;
   --color-ink: #1f2933;
-  --color-muted: #616e7c;
-  --color-accent: #0f766e;
-  --color-accent-strong: #115e59;
+  --color-muted-foreground: #616e7c;
+  --color-primary: #0f766e;
+  --color-primary-strong: #115e59;
   --color-danger: #b42318;
   --color-danger-soft: #fef3f2;
   --color-ok-soft: #ecfdf3;

@@ -72,7 +72,7 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
             <span
               key={ids[i]}
               aria-hidden="true"
-              className="inline-flex size-(--avatar-size) shrink-0 items-center justify-center rounded-full bg-accent text-(length:--font-xs) font-semibold text-white"
+              className="inline-flex size-(--avatar-size) shrink-0 items-center justify-center rounded-full bg-primary text-(length:--font-xs) font-semibold text-white"
             >
               {initials(nama)}
             </span>
@@ -80,7 +80,7 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
           {list.length === 1 ? (
             <span className="truncate">{list[0]}</span>
           ) : list.length > 3 ? (
-            <span className="text-muted">+{list.length - 3}</span>
+            <span className="text-muted-foreground">+{list.length - 3}</span>
           ) : null}
         </span>
       )
@@ -91,7 +91,7 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
       return (
         <span className="px-d flex h-full items-center gap-d">
           <span className="h-(--bar-h) flex-1 overflow-hidden rounded-full bg-canvas">
-            <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.min(100, Math.max(0, n))}%` }} />
+            <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, n))}%` }} />
           </span>
           <span className="w-(--pct-w) text-right tabular-nums">{n}%</span>
         </span>
@@ -104,7 +104,7 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
         </span>
       )
     case 'dependency':
-      return <span className="px-d flex h-full items-center text-muted">—</span>
+      return <span className="px-d flex h-full items-center text-muted-foreground">—</span>
     default:
       return <span className="px-d flex h-full items-center truncate">{valueText(col, item, names)}</span>
   }

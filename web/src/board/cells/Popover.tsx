@@ -149,7 +149,7 @@ export function OptionList({
           {o.warna ? (
             <span className={`tag-${o.warna} tag-fill inline-flex min-w-(--badge-min-w) justify-center rounded px-d`}>{o.label}</span>
           ) : (
-            <span className="text-muted">{o.label}</span>
+            <span className="text-muted-foreground">{o.label}</span>
           )}
           {o.value === selected && <span aria-hidden="true">✓</span>}
         </li>

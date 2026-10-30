@@ -52,7 +52,7 @@ export function LoginPage() {
         <Button type="submit" variant="primary" disabled={login.isPending || !email || !password}>
           {login.isPending ? 'Memproses…' : 'Masuk'}
         </Button>
-        <p className="text-muted">Lupa kata sandi? Hubungi Admin untuk reset.</p>
+        <p className="text-muted-foreground">Lupa kata sandi? Hubungi Admin untuk reset.</p>
       </form>
     </main>
   )

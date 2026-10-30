@@ -171,7 +171,7 @@ function MembersPanel({ project, canManage }: { project: Project; canManage: boo
       {members.data && (
         <table className="mt-(--density-gap) w-full text-left">
           <thead>
-            <tr className="row-h border-b border-line text-muted">
+            <tr className="row-h border-b border-line text-muted-foreground">
               <th className="px-d font-medium">Nama</th>
               <th className="px-d font-medium">Peran global</th>
               <th className="px-d font-medium">Peran proyek</th>
@@ -183,7 +183,7 @@ function MembersPanel({ project, canManage }: { project: Project; canManage: boo
             {members.data.items.map((m) => (
               <tr key={m.user_id} className="row-h border-b border-line">
                 <td className="px-d">
-                  {m.nama} {m.user_id === project.pemilik_id && <span className="text-muted">(pemilik)</span>}
+                  {m.nama} {m.user_id === project.pemilik_id && <span className="text-muted-foreground">(pemilik)</span>}
                 </td>
                 <td className="px-d">{ROLE_LABEL[m.peran_global]}</td>
                 <td className="px-d">
@@ -251,11 +251,11 @@ function BoardsPanel({ project, canManage }: { project: Project; canManage: bool
   return (
     <Panel title="Board">
       {boards.isPending && <Loading />}
-      {boards.data?.items.length === 0 && <p className="text-muted">Belum ada board.</p>}
+      {boards.data?.items.length === 0 && <p className="text-muted-foreground">Belum ada board.</p>}
       <ul className="flex flex-col">
         {boards.data?.items.map((b) => (
           <li key={b.id} className="row-h flex items-center border-b border-line">
-            <Link to={`/board/${b.id}`} className="text-accent hover:underline">
+            <Link to={`/board/${b.id}`} className="text-primary hover:underline">
               {b.nama}
             </Link>
           </li>
@@ -290,13 +290,13 @@ export function ProjectPage() {
   return (
     <div className="gap-d flex flex-col">
       <div>
-        <Link to="/" className="text-muted hover:underline">
+        <Link to="/" className="text-muted-foreground hover:underline">
           Proyek
         </Link>
         <h1 className="text-(length:--font-heading) font-semibold">
-          {p.nama} {p.diarsipkan_pada && <span className="text-muted">(diarsipkan)</span>}
+          {p.nama} {p.diarsipkan_pada && <span className="text-muted-foreground">(diarsipkan)</span>}
         </h1>
-        <p className="text-muted">
+        <p className="text-muted-foreground">
           Pemilik {p.pemilik_nama} · prioritas {p.prioritas} · peran Anda{' '}
           {p.peran_saya ? PROJECT_ROLE_LABEL[p.peran_saya] : '—'}
         </p>

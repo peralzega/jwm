@@ -37,7 +37,7 @@ describe('pola penjaga', () => {
     const ok =
       'gap-(--space-sm) top-0 left-0 px-d row-h min-w-0 flex-1 ring-(length:--focus-ring-w) -mb-(--line-w) ' +
       'w-[calc(var(--kanban-col-w)_-_2*var(--density-pad-x))] text-(length:--font-heading) border border-line ' +
-      'rounded rounded-full text-muted text-right text-white outline-none max-w-(--auth-card-w)'
+      'rounded rounded-full text-muted-foreground text-right text-white outline-none max-w-(--auth-card-w)'
     expect(ok.match(FIXED)).toBeNull()
   })
 })

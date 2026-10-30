@@ -23,7 +23,7 @@ export function DensityToggle() {
           onClick={() => {
             if (density !== o.value) set.mutate(o.value)
           }}
-          className={`row-h px-d border border-line focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-accent ${
+          className={`row-h px-d border border-line focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-primary ${
             i === 0 ? 'rounded-l' : '-ml-(--line-w) rounded-r'
           } ${density === o.value ? 'bg-canvas font-semibold' : 'bg-surface hover:bg-canvas'}`}
         >

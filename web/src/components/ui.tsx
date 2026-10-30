@@ -4,7 +4,7 @@ import { useId } from 'react'
 type Variant = 'primary' | 'secondary' | 'danger'
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-strong border-accent',
+  primary: 'bg-primary text-white hover:bg-primary-strong border-primary',
   secondary: 'bg-surface text-ink hover:bg-canvas border-line',
   danger: 'bg-surface text-danger hover:bg-danger-soft border-line',
 }
@@ -17,13 +17,13 @@ export function Button({
   return (
     <button
       type="button"
-      className={`row-h px-d inline-flex items-center rounded border font-medium disabled:opacity-50 focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-offset-(--line-w) focus-visible:outline-accent ${VARIANT[variant]} ${className}`}
+      className={`row-h px-d inline-flex items-center rounded border font-medium disabled:opacity-50 focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-offset-(--line-w) focus-visible:outline-primary ${VARIANT[variant]} ${className}`}
       {...props}
     />
   )
 }
 
-const FIELD = 'row-h px-d w-full rounded border border-line bg-surface focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-accent'
+const FIELD = 'row-h px-d w-full rounded border border-line bg-surface focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-primary'
 
 export function TextField({
   label,
@@ -38,7 +38,7 @@ export function TextField({
       </label>
       <input id={id} className={FIELD} aria-describedby={hint ? `${id}-hint` : undefined} {...props} />
       {hint && (
-        <span id={`${id}-hint`} className="text-muted">
+        <span id={`${id}-hint`} className="text-muted-foreground">
           {hint}
         </span>
       )}
@@ -87,7 +87,7 @@ export function Panel({ title, actions, children }: { title: string; actions?: R
 
 export function Loading() {
   return (
-    <p role="status" className="text-muted px-d py-d">
+    <p role="status" className="text-muted-foreground px-d py-d">
       Memuat…
     </p>
   )

@@ -90,7 +90,7 @@ export function BoardPage() {
     <div className="gap-d flex flex-col">
       <div className="gap-d flex flex-wrap items-end justify-between">
         <div>
-          <Link to={`/proyek/${b.project_id}`} className="text-muted hover:underline">
+          <Link to={`/proyek/${b.project_id}`} className="text-muted-foreground hover:underline">
             Kembali ke proyek
           </Link>
           <h1 className="text-(length:--font-heading) font-semibold">{b.nama}</h1>
@@ -118,13 +118,13 @@ export function BoardPage() {
       </div>
       <div aria-live="polite">{error && <Alert>{error}</Alert>}</div>
       {items.isPending && (
-        <p role="status" className="px-d py-d text-muted">
+        <p role="status" className="px-d py-d text-muted-foreground">
           Memuat item… {items.loaded > 0 && `${items.loaded.toLocaleString('id-ID')} dimuat`}
         </p>
       )}
       {items.isError && <Alert>{errorMessage(items.error)}</Alert>}
       {items.data && view === 'kanban' && !statusCol && (
-        <p className="px-d py-d text-muted">Board ini belum memiliki kolom status untuk Kanban.</p>
+        <p className="px-d py-d text-muted-foreground">Board ini belum memiliki kolom status untuk Kanban.</p>
       )}
       {items.data && view === 'kanban' && statusCol && (
         <LazyKanban

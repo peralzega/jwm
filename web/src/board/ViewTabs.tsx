@@ -41,8 +41,8 @@ export function ViewTabs({ value, onChange }: { value: BoardView; onChange: (v: 
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(v.id)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className={`px-d row-h -mb-(--line-w) border-b-(length:--tab-line-w) outline-none focus-visible:ring-(length:--focus-ring-w) focus-visible:ring-accent ${
-              selected ? 'border-accent font-semibold' : 'border-transparent text-muted hover:text-ink'
+            className={`px-d row-h -mb-(--line-w) border-b-(length:--tab-line-w) outline-none focus-visible:ring-(length:--focus-ring-w) focus-visible:ring-primary ${
+              selected ? 'border-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-ink'
             }`}
           >
             {v.label}

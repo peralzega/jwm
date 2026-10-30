@@ -40,7 +40,7 @@ export function CardBody({ item, group }: { item: Item; group: Group | undefined
             <span
               key={people[i]}
               aria-hidden="true"
-              className="inline-flex size-(--avatar-size) items-center justify-center rounded-full bg-accent font-semibold text-white"
+              className="inline-flex size-(--avatar-size) items-center justify-center rounded-full bg-primary font-semibold text-white"
             >
               {initials(nama)}
             </span>
@@ -52,7 +52,7 @@ export function CardBody({ item, group }: { item: Item; group: Group | undefined
             {PRIORITY_STYLE[prio].judul}
           </span>
         )}
-        {date && <span className="ml-auto shrink-0 text-muted">{date}</span>}
+        {date && <span className="ml-auto shrink-0 text-muted-foreground">{date}</span>}
       </div>
     </div>
   )
@@ -95,7 +95,7 @@ export const KanbanCard = memo(function KanbanCard({
       aria-label={`${item.judul}${item.bisa_ubah ? '' : ' (hanya baca)'}`}
       aria-pressed={item.bisa_ubah ? isLifted : undefined}
       data-kanban-card={item.id}
-      className={`rounded outline-none focus-visible:ring-(length:--focus-ring-w) focus-visible:ring-accent ${
+      className={`rounded outline-none focus-visible:ring-(length:--focus-ring-w) focus-visible:ring-primary ${
         // touch-manipulation: sentuhan singkat tetap menggulir kolom; seret
         // dimulai lewat tahan sebentar (TouchSensor dengan jeda).
         item.bisa_ubah ? 'cursor-grab touch-manipulation' : 'cursor-default'

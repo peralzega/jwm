@@ -61,16 +61,16 @@ export const KanbanColumn = memo(function KanbanColumn({
       aria-labelledby={headingId}
       data-kanban-col={col.id}
       className={`flex w-(--kanban-col-w) shrink-0 flex-col rounded border bg-canvas ${
-        isTarget ? 'border-accent ring-(length:--focus-ring-w) ring-accent' : 'border-line'
+        isTarget ? 'border-primary ring-(length:--focus-ring-w) ring-primary' : 'border-line'
       }`}
     >
       <h2 id={headingId} className="px-d row-h flex shrink-0 items-center gap-(--space-sm) font-semibold">
         {col.warna ? (
           <span className={`tag-${col.warna} tag-fill rounded px-(--space-sm)`}>{col.judul}</span>
         ) : (
-          <span className="text-muted">{col.judul}</span>
+          <span className="text-muted-foreground">{col.judul}</span>
         )}
-        <span className="font-normal text-muted" aria-label={`${col.items.length} kartu`}>
+        <span className="font-normal text-muted-foreground" aria-label={`${col.items.length} kartu`}>
           {col.items.length}
         </span>
       </h2>
@@ -86,7 +86,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             )
           })}
         </div>
-        {col.items.length === 0 && <p className="py-d text-center text-muted">Tidak ada kartu</p>}
+        {col.items.length === 0 && <p className="py-d text-center text-muted-foreground">Tidak ada kartu</p>}
       </div>
     </section>
   )

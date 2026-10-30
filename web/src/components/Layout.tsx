@@ -17,7 +17,7 @@ export function Layout() {
   return (
     <div className="min-h-screen">
       <header className="px-d gap-d flex items-center border-b border-line bg-surface">
-        <span className="font-semibold text-accent">JWM</span>
+        <span className="font-semibold text-primary">JWM</span>
         <nav aria-label="Navigasi utama" className="flex gap-(--space-sm)">
           <NavLink to="/" end className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
             Proyek
@@ -30,7 +30,7 @@ export function Layout() {
         </nav>
         <div className="gap-d ml-auto flex items-center py-(--space-sm)">
           {user && (
-            <span className="text-muted">
+            <span className="text-muted-foreground">
               {user.nama} · {ROLE_LABEL[user.peran]}
             </span>
           )}
