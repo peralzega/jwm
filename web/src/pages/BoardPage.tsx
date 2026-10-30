@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 
 import { api, errorMessage } from '../api/client'
 import type { BoardDetail, Group, Member } from '../api/types'
 import { BoardTable } from '../board/BoardTable'
+import { statusColumns } from '../board/kanban/columns'
+import { KanbanBoard } from '../board/kanban/KanbanBoard'
+import { parseView, ViewTabs } from '../board/ViewTabs'
 import { useBoardItems, useItemMutations } from '../board/useBoardItems'
 import { Alert, Button, Loading } from '../components/ui'
 import { NotFoundPage } from './NotFoundPage'
@@ -47,6 +50,7 @@ function AddGroupForm({ boardId }: { boardId: string }) {
 
 export function BoardPage() {
   const { boardId = '' } = useParams()
+  const [params, setParams] = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const board = useQuery({
     queryKey: ['board', boardId],
@@ -66,6 +70,21 @@ export function BoardPage() {
   if (board.isError) return <NotFoundPage />
   const b = board.data
   const canCreate = b.peran_saya === 'manager' || b.peran_saya === 'member'
+  const view = parseView(params.get('tampilan'))
+  const statusCols = statusColumns(b.kolom)
+  const statusCol = statusCols.find((c) => c.id === params.get('status')) ?? statusCols[0]
+
+  function setParam(key: string, value: string | null) {
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p)
+        if (value === null) next.delete(key)
+        else next.set(key, value)
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   return (
     <div className="gap-d flex flex-col">
@@ -78,6 +97,25 @@ export function BoardPage() {
         </div>
         {b.peran_saya === 'manager' && <AddGroupForm boardId={b.id} />}
       </div>
+      <div className="gap-d flex flex-wrap items-end justify-between">
+        <ViewTabs value={view} onChange={(v) => setParam('tampilan', v === 'tabel' ? null : v)} />
+        {view === 'kanban' && statusCols.length > 1 && statusCol && (
+          <label className="gap-d flex items-center">
+            Kelompokkan menurut
+            <select
+              className="row-h px-d rounded border border-line bg-surface"
+              value={statusCol.id}
+              onChange={(e) => setParam('status', e.target.value)}
+            >
+              {statusCols.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.judul}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       <div aria-live="polite">{error && <Alert>{error}</Alert>}</div>
       {items.isPending && (
         <p role="status" className="px-d py-d text-muted">
@@ -85,7 +123,19 @@ export function BoardPage() {
         </p>
       )}
       {items.isError && <Alert>{errorMessage(items.error)}</Alert>}
-      {items.data && (
+      {items.data && view === 'kanban' && !statusCol && (
+        <p className="px-d py-d text-muted">Board ini belum memiliki kolom status untuk Kanban.</p>
+      )}
+      {items.data && view === 'kanban' && statusCol && (
+        <KanbanBoard
+          board={b}
+          statusCol={statusCol}
+          items={items.data}
+          members={members.data?.items ?? NO_MEMBERS}
+          mutations={mutations}
+        />
+      )}
+      {items.data && view === 'tabel' && (
         <BoardTable
           board={b}
           items={items.data}
