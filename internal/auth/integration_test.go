@@ -289,6 +289,63 @@ func TestMustChangePasswordOnFirstLogin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, e.client(t).login("baru@jiep.co.id", goodPassword).status)
 }
 
+func TestPreferences(t *testing.T) {
+	e := newTestEnv(t, 100)
+	e.createUser(t, "pref@jiep.co.id", goodPassword, false)
+	c := e.client(t)
+	r := c.login("pref@jiep.co.id", goodPassword)
+	require.Equal(t, http.StatusOK, r.status)
+	assert.Equal(t, "compact", r.body["user"].(map[string]any)["kepadatan"], "default compact")
+
+	const path = "/api/v1/auth/me/preferensi"
+	tests := []struct {
+		name   string
+		body   any
+		status int
+		code   string
+		want   string // kepadatan di /auth/me setelah permintaan
+	}{
+		{"ubah ke normal", map[string]any{"kepadatan": "normal"}, http.StatusOK, "", "normal"},
+		{"badan kosong tidak mengubah apa pun", map[string]any{}, http.StatusOK, "", "normal"},
+		{"kembali ke compact", map[string]any{"kepadatan": "compact"}, http.StatusOK, "", "compact"},
+		{"nilai tak dikenal", map[string]any{"kepadatan": "lebar"}, http.StatusUnprocessableEntity, "validation", "compact"},
+		{"bidang tak dikenal", map[string]any{"peran": "admin"}, http.StatusBadRequest, "bad_request", "compact"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := c.do(http.MethodPatch, path, tt.body)
+			require.Equal(t, tt.status, r.status, r.raw)
+			if tt.code != "" {
+				assert.Equal(t, tt.code, r.body["error"])
+			} else {
+				assert.Equal(t, tt.want, r.body["user"].(map[string]any)["kepadatan"])
+			}
+			me := c.do(http.MethodGet, "/api/v1/auth/me", nil)
+			assert.Equal(t, tt.want, me.body["user"].(map[string]any)["kepadatan"])
+		})
+	}
+
+	t.Run("tanpa CSRF ditolak", func(t *testing.T) {
+		token := c.csrf
+		c.csrf = ""
+		defer func() { c.csrf = token }()
+		assert.Equal(t, http.StatusForbidden, c.do(http.MethodPatch, path, map[string]any{"kepadatan": "normal"}).status)
+	})
+
+	t.Run("tanpa sesi ditolak", func(t *testing.T) {
+		assert.Equal(t, http.StatusUnauthorized, e.client(t).do(http.MethodPatch, path, map[string]any{"kepadatan": "normal"}).status)
+	})
+
+	t.Run("wajib ganti sandi ditolak", func(t *testing.T) {
+		e.createUser(t, "pref-baru@jiep.co.id", "sandi-sementara-002", true)
+		nc := e.client(t)
+		require.Equal(t, http.StatusOK, nc.login("pref-baru@jiep.co.id", "sandi-sementara-002").status)
+		r := nc.do(http.MethodPatch, path, map[string]any{"kepadatan": "normal"})
+		assert.Equal(t, http.StatusForbidden, r.status)
+		assert.Equal(t, "password_change_required", r.body["error"])
+	})
+}
+
 func TestCSRFRequiredForMutations(t *testing.T) {
 	e := newTestEnv(t, 100)
 	e.createUser(t, "csrf@jiep.co.id", goodPassword, false)

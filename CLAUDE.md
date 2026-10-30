@@ -114,6 +114,7 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
 .\scripts\migrate.ps1 [up|down|status]   # migrasi goose
 .\scripts\sqlc.ps1              # hasilkan kode query
 .\scripts\seed.ps1              # buat Admin pertama
+.\scripts\seed-demo.ps1 -Items 5000   # proyek demo untuk uji beban (ditolak di production)
 ```
 
 `web/go.mod` sengaja ada agar `go ... ./...` tidak memindai `web/node_modules`.

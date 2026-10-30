@@ -77,6 +77,11 @@ SET password_hash = $2, wajib_ganti_sandi = true, gagal_login = 0, terkunci_hing
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateUserDensity :one
+UPDATE users SET kepadatan = $2, diubah_pada = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: UnlockUser :one
 UPDATE users SET gagal_login = 0, terkunci_hingga = NULL, diubah_pada = now()
 WHERE id = $1

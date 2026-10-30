@@ -47,6 +47,30 @@ paths:
               schema: { $ref: "#/components/schemas/SessionResponse" }
           description: OK
         "401": { $ref: "#/components/responses/Unauthenticated" }
+  /auth/me/preferensi:
+    patch:
+      summary: Ubah preferensi tampilan sendiri
+      description: Hanya mengubah data milik pengguna yang meminta. Bidang yang tidak dikirim tidak berubah.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                kepadatan: { type: string, enum: [compact, normal] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "400": { description: Badan permintaan tidak valid atau berisi bidang tak dikenal }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: Token CSRF tidak valid atau sandi wajib diganti (password_change_required) }
+        "422": { description: Nilai kepadatan tidak dikenal (validation) }
   /auth/logout:
     post:
       summary: Keluar dan hapus sesi saat ini
@@ -760,6 +784,10 @@ components:
         wajib_ganti_sandi:
           type: boolean
           description: Bila true, semua rute selain /auth/me, /auth/password, dan /auth/logout menjawab 403 password_change_required.
+        kepadatan:
+          type: string
+          enum: [compact, normal]
+          description: Kepadatan tampilan pilihan pengguna. Default compact.
     Role:
       type: string
       enum: [admin, pmo, project_manager, member, viewer]
