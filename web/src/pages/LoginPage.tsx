@@ -31,7 +31,7 @@ export function LoginPage() {
   return (
     <main className="mx-auto mt-(--auth-top) w-full max-w-(--auth-card-w)">
       <form onSubmit={submit} className="gap-d flex flex-col rounded border border-line bg-surface p-(--card-pad)" noValidate>
-        <h1 className="text-(length:--font-heading) font-semibold">Masuk ke JWM</h1>
+        <h1 className="text-(length:--heading-size) font-semibold">Masuk ke JWM</h1>
         {login.isError && <Alert>{errorMessage(login.error)}</Alert>}
         <TextField
           label="Email"

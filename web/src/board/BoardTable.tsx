@@ -395,9 +395,11 @@ export function BoardTable({
     (p: Pos) => {
       const r = Math.max(0, Math.min(rows.length - 1, p.r))
       const c = Math.max(0, Math.min(ncols - 1, p.c))
+      // Tandai dulu: scrollToIndex dapat memicu render sinkron (flushSync) yang
+      // menjalankan efek fokus sebelum baris berikutnya.
+      focusPending.current = true
       setActive({ r, c })
       virtualizer.scrollToIndex(r, { align: 'auto' })
-      focusPending.current = true
     },
     [rows.length, ncols, virtualizer],
   )

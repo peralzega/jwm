@@ -7,7 +7,8 @@ import type { BoardDetail, Group, Member } from '../api/types'
 import { BoardTable } from '../board/BoardTable'
 import { statusColumns } from '../board/kanban/columns'
 import { LazyKanban } from '../board/LazyKanban'
-import { parseView, ViewTabs } from '../board/ViewTabs'
+import { isBoardView, parseView, ViewTabsList } from '../board/ViewTabs'
+import { Tabs, TabsContent } from '../components/ui/tabs'
 import { useBoardItems, useItemMutations } from '../board/useBoardItems'
 import { Alert, Button, Loading } from '../components/ui'
 import { NotFoundPage } from './NotFoundPage'
@@ -93,12 +94,18 @@ export function BoardPage() {
           <Link to={`/proyek/${b.project_id}`} className="text-muted-foreground hover:underline">
             Kembali ke proyek
           </Link>
-          <h1 className="text-(length:--font-heading) font-semibold">{b.nama}</h1>
+          <h1 className="text-(length:--heading-size) font-semibold">{b.nama}</h1>
         </div>
         {b.peran_saya === 'manager' && <AddGroupForm boardId={b.id} />}
       </div>
+      <Tabs
+        value={view}
+        onValueChange={(v) => {
+          if (isBoardView(v)) setParam('tampilan', v === 'tabel' ? null : v)
+        }}
+      >
       <div className="gap-d flex flex-wrap items-end justify-between">
-        <ViewTabs value={view} onChange={(v) => setParam('tampilan', v === 'tabel' ? null : v)} />
+        <ViewTabsList />
         {view === 'kanban' && statusCols.length > 1 && statusCol && (
           <label className="gap-d flex items-center">
             Kelompokkan menurut
@@ -123,28 +130,33 @@ export function BoardPage() {
         </p>
       )}
       {items.isError && <Alert>{errorMessage(items.error)}</Alert>}
-      {items.data && view === 'kanban' && !statusCol && (
-        <p className="px-d py-d text-muted-foreground">Board ini belum memiliki kolom status untuk Kanban.</p>
-      )}
-      {items.data && view === 'kanban' && statusCol && (
-        <LazyKanban
-          board={b}
-          statusCol={statusCol}
-          items={items.data}
-          members={members.data?.items ?? NO_MEMBERS}
-          mutations={mutations}
-        />
-      )}
-      {items.data && view === 'tabel' && (
-        <BoardTable
-          board={b}
-          items={items.data}
-          members={members.data?.items ?? NO_MEMBERS}
-          canCreate={canCreate}
-          mutations={mutations}
-          onError={setError}
-        />
-      )}
+      <TabsContent value="kanban">
+        {items.data && !statusCol && (
+          <p className="px-d py-d text-muted-foreground">Board ini belum memiliki kolom status untuk Kanban.</p>
+        )}
+        {items.data && statusCol && (
+          <LazyKanban
+            board={b}
+            statusCol={statusCol}
+            items={items.data}
+            members={members.data?.items ?? NO_MEMBERS}
+            mutations={mutations}
+          />
+        )}
+      </TabsContent>
+      <TabsContent value="tabel">
+        {items.data && (
+          <BoardTable
+            board={b}
+            items={items.data}
+            members={members.data?.items ?? NO_MEMBERS}
+            canCreate={canCreate}
+            mutations={mutations}
+            onError={setError}
+          />
+        )}
+      </TabsContent>
+      </Tabs>
     </div>
   )
 }

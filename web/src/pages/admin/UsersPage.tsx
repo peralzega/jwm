@@ -177,7 +177,7 @@ export function UsersPage() {
 
   return (
     <div className="gap-d flex flex-col">
-      <h1 className="text-(length:--font-heading) font-semibold">Pengguna</h1>
+      <h1 className="text-(length:--heading-size) font-semibold">Pengguna</h1>
       {temp && <TempPasswordNotice result={temp} onClose={() => setTemp(null)} />}
       {rowError && <Alert>{rowError}</Alert>}
       <Panel title="Buat akun">

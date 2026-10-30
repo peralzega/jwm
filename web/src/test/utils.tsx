@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router'
 import { vi } from 'vitest'
 
 import type { SessionUser } from '../api/types'
+import { TooltipProvider } from '../components/ui/tooltip'
 import { routes } from '../routes'
 
 export interface Call {
@@ -56,7 +57,9 @@ export function renderApp(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
   render(
     <QueryClientProvider client={qc}>
-      <RouterProvider router={router} />
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
     </QueryClientProvider>,
   )
   return router

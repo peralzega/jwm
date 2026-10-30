@@ -243,7 +243,8 @@ describe('Kanban', () => {
     expect(router.state.location.search).not.toContain('tampilan=')
     expect(await screen.findByRole('grid')).toBeInTheDocument()
     await u.keyboard('{ArrowRight}')
-    expect(screen.getByRole('tab', { name: 'Kanban' })).toHaveAttribute('aria-selected', 'true')
+    // Radix Tabs memindah fokus (dan mengaktifkan tab) secara asinkron.
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Kanban' })).toHaveAttribute('aria-selected', 'true'))
     expect(router.state.location.search).toContain('tampilan=kanban')
   })
 

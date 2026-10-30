@@ -65,6 +65,19 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
   `-ml-px`, `text-[0.7rem]`) ditolak oleh `web/src/tokens.test.ts`. Token baru
   didefinisikan untuk `compact` dan, bila berbeda, `normal`.
 - Grid wajib memakai virtualisasi baris.
+- Komponen dasar memakai shadcn/ui (`web/src/components/ui`, `web/components.json`),
+  disesuaikan ke token: warna lewat variabel tema shadcn di `index.css` (nilai =
+  palet JWM), ukuran lewat token kepadatan. BoardTable dan Kanban tetap kustom.
+  Pasang komponen shadcn hanya saat modul yang memakainya dikerjakan.
+- Perintah shadcn selalu memakai versi terkunci: `npx shadcn@4.21.5 add <komponen>`,
+  bukan `shadcn@latest` atau tanpa versi. Setelah `add`, tinjau hasilnya: ganti
+  impor `radix-ui`/`cn`/`lucide-react` ke paket `@radix-ui/react-*` dan `@/lib/utils`,
+  ubah ukuran ke token, buang varian `dark:`, lalu kunci versi dependensi baru.
+- Popover dan komponen Radix lain selalu non-modal: mode modal memakai
+  react-remove-scroll yang menyisipkan `<style>` dan melanggar CSP `style-src 'self'`.
+- `npm run build` menulis `dist/THIRD-PARTY-NOTICES.txt` dan gagal bila ada
+  paket dalam bundel berlisensi di luar daftar yang diizinkan
+  (`web/build/third-party-notices.ts`).
 - Aksesibilitas dasar: fokus keyboard dan label ARIA pada kontrol interaktif.
 
 ## Keamanan

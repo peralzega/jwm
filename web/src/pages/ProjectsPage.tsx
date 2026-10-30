@@ -65,7 +65,7 @@ export function ProjectsPage() {
 
   return (
     <div className="gap-d flex flex-col">
-      <h1 className="text-(length:--font-heading) font-semibold">Proyek</h1>
+      <h1 className="text-(length:--heading-size) font-semibold">Proyek</h1>
       {canCreate && (
         <Panel title="Proyek baru">
           <CreateProjectForm />

@@ -293,7 +293,7 @@ export function ProjectPage() {
         <Link to="/" className="text-muted-foreground hover:underline">
           Proyek
         </Link>
-        <h1 className="text-(length:--font-heading) font-semibold">
+        <h1 className="text-(length:--heading-size) font-semibold">
           {p.nama} {p.diarsipkan_pada && <span className="text-muted-foreground">(diarsipkan)</span>}
         </h1>
         <p className="text-muted-foreground">
