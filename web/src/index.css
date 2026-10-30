@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/*
+ * Token desain JWM. Komponen memakai token ini, bukan angka mentah.
+ * Kepadatan: compact (default) dan normal, lewat atribut data-density pada <html>.
+ */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-line: #dfe3e8;
+  --color-ink: #1f2933;
+  --color-muted: #616e7c;
+  --color-accent: #0f766e;
+  --color-accent-strong: #115e59;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-ok-soft: #ecfdf3;
+
+  /* Warna token grup dan label (nama sama dengan API). */
+  --color-tag-abu: #8a94a6;
+  --color-tag-biru: #2f6fd6;
+  --color-tag-hijau: #2e9e5b;
+  --color-tag-kuning: #d4a106;
+  --color-tag-oranye: #e2731b;
+  --color-tag-merah: #d23c3c;
+  --color-tag-ungu: #7a4fd0;
+  --color-tag-tosca: #1a9c9c;
+  --color-tag-merah_muda: #d5508e;
+}
+
+:root {
+  --density-row: 32px;
+  --density-font: 13px;
+  --density-pad-x: 8px;
+  --density-pad-y: 4px;
+  --density-gap: 8px;
+}
+
+:root[data-density="normal"] {
+  --density-row: 40px;
+  --density-font: 14px;
+  --density-pad-x: 12px;
+  --density-pad-y: 8px;
+  --density-gap: 12px;
+}
+
+html {
+  font-size: var(--density-font);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Tinggi baris standar untuk daftar dan grid. */
+.row-h {
+  min-height: var(--density-row);
+}
+
+.px-d {
+  padding-left: var(--density-pad-x);
+  padding-right: var(--density-pad-x);
+}
+
+.py-d {
+  padding-top: var(--density-pad-y);
+  padding-bottom: var(--density-pad-y);
+}
+
+.gap-d {
+  gap: var(--density-gap);
+}
+
+.tag-abu { --tag: var(--color-tag-abu); }
+.tag-biru { --tag: var(--color-tag-biru); }
+.tag-hijau { --tag: var(--color-tag-hijau); }
+.tag-kuning { --tag: var(--color-tag-kuning); }
+.tag-oranye { --tag: var(--color-tag-oranye); }
+.tag-merah { --tag: var(--color-tag-merah); }
+.tag-ungu { --tag: var(--color-tag-ungu); }
+.tag-tosca { --tag: var(--color-tag-tosca); }
+.tag-merah_muda { --tag: var(--color-tag-merah_muda); }
+
+.tag-bar {
+  border-left: 4px solid var(--tag);
+}
+
+.tag-fill {
+  background: var(--tag);
+  color: #fff;
+}

@@ -1,0 +1,904 @@
+openapi: 3.1.0
+info:
+  title: JWM API
+  version: 0.1.0
+  description: |
+    API JIEP Work Management. Autentikasi memakai cookie sesi `__Host-jwm_session`.
+    Semua metode selain GET/HEAD/OPTIONS pada rute terautentikasi wajib
+    menyertakan header `X-CSRF-Token` (lihat docs/adr/0001-sesi-dan-csrf.md).
+servers:
+  - url: /api/v1
+paths:
+  /auth/login:
+    post:
+      summary: Masuk dengan email dan kata sandi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, maxLength: 254 }
+                password: { type: string }
+      responses:
+        "200":
+          description: Berhasil. Cookie sesi diset.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "401":
+          description: Kredensial salah, akun nonaktif, atau terkunci (respons seragam).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Batas laju per IP terlampaui. Header Retry-After disertakan.
+  /auth/me:
+    get:
+      summary: Pengguna saat ini dan token CSRF
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+          description: OK
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /auth/logout:
+    post:
+      summary: Keluar dan hapus sesi saat ini
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Berhasil }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: Token CSRF tidak valid }
+  /auth/password:
+    post:
+      summary: Ganti kata sandi sendiri
+      description: Mencabut semua sesi pengguna, lalu membuat sesi baru untuk perangkat ini.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sandi_lama, sandi_baru]
+              properties:
+                sandi_lama: { type: string }
+                sandi_baru: { type: string, minLength: 12, maxLength: 128 }
+      responses:
+        "200":
+          description: Berhasil. Cookie sesi baru diset.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: Sandi lama salah atau token CSRF tidak valid }
+        "422": { description: Sandi baru melanggar kebijakan }
+        "429": { description: Batas laju per IP terlampaui }
+  /users:
+    get:
+      summary: Cari pengguna aktif (untuk pemilih anggota)
+      description: Terbuka bagi semua pengguna login. Minimal 2 karakter; maksimal 20 hasil.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, maxLength: 200 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/UserSummary" } }
+  /projects:
+    description: |
+      Hak efektif = irisan peran global dan peran proyek (SPEC bagian 2).
+      Admin dan PMO mengelola semua proyek tanpa keanggotaan. Non-anggota
+      mendapat 404 agar keberadaan proyek tidak bocor.
+    get:
+      summary: Proyek yang dapat dilihat pengguna
+      parameters:
+        - { name: arsip, in: query, description: true untuk proyek diarsipkan, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Project" } }
+    post:
+      summary: Buat proyek (Admin, PMO, Project Manager). Pembuat menjadi manager.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama]
+              properties:
+                nama: { type: string, maxLength: 200 }
+                mulai: { type: [string, "null"], format: date }
+                selesai: { type: [string, "null"], format: date }
+                prioritas: { $ref: "#/components/schemas/Priority" }
+                pemilik_id:
+                  type: string
+                  format: uuid
+                  description: Default pembuat. Harus pengguna aktif berperan PM, PMO, atau Admin; ditambahkan sebagai manager.
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { description: Peran global tidak boleh membuat proyek }
+        "422": { description: validation }
+  /projects/{id}:
+    parameters: [{ $ref: "#/components/parameters/ProjectID" }]
+    get:
+      summary: Detail proyek
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404": { description: Tidak ada atau tidak punya akses }
+    patch:
+      summary: Ubah proyek (manager efektif). Field tidak dikirim tidak berubah; null menghapus tanggal.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nama: { type: string }
+                mulai: { type: [string, "null"], format: date }
+                selesai: { type: [string, "null"], format: date }
+                prioritas: { $ref: "#/components/schemas/Priority" }
+                pemilik_id: { type: string, format: uuid, description: Harus anggota manager }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { description: Bukan manager efektif }
+        "404": { description: Tidak ada atau tidak punya akses }
+        "409": { description: project_archived }
+        "422": { description: validation }
+  /projects/{id}/archive:
+    post:
+      summary: Arsipkan proyek (manager efektif). Proyek arsip hanya-baca.
+      parameters: [{ $ref: "#/components/parameters/ProjectID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{id}/unarchive:
+    post:
+      summary: Pulihkan proyek dari arsip (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/ProjectID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{id}/members:
+    parameters: [{ $ref: "#/components/parameters/ProjectID" }]
+    get:
+      summary: Anggota proyek (semua yang punya akses baca)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberList" }
+    post:
+      summary: Tambah anggota (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [user_id, peran_proyek]
+              properties:
+                user_id: { type: string, format: uuid }
+                peran_proyek: { $ref: "#/components/schemas/ProjectRole" }
+      responses:
+        "201":
+          description: Ditambahkan; badan berisi daftar anggota terbaru
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberList" }
+        "409": { description: "already_member, project_archived" }
+        "422": { description: "role_exceeds_global (Viewer global hanya viewer; Member global paling tinggi member), validation" }
+  /projects/{id}/members/{userId}:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectID" }
+      - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Ubah peran proyek anggota (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [peran_proyek]
+              properties:
+                peran_proyek: { $ref: "#/components/schemas/ProjectRole" }
+      responses:
+        "200":
+          description: OK; badan berisi daftar anggota terbaru
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberList" }
+        "404": { description: member_not_found }
+        "409": { description: "owner_member (pemilik harus tetap manager), last_manager" }
+        "422": { description: role_exceeds_global }
+    delete:
+      summary: Keluarkan anggota (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dikeluarkan }
+        "404": { description: member_not_found }
+        "409": { description: "owner_member, last_manager" }
+  /projects/{id}/boards:
+    parameters: [{ $ref: "#/components/parameters/ProjectID" }]
+    get:
+      summary: Board aktif pada proyek (akses baca)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Board" } }
+    post:
+      summary: Buat board (manager efektif)
+      description: Board baru berisi grup "Tugas", kolom status berlabel bawaan, dan kolom person "Penanggung jawab".
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama]
+              properties:
+                nama: { type: string, maxLength: 200 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardDetail" }
+  /boards/{id}:
+    parameters: [{ $ref: "#/components/parameters/BoardID" }]
+    get:
+      summary: Board beserta kolom dan grup
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardDetail" }
+        "404": { description: Tidak ada, terhapus, atau tidak punya akses }
+    patch:
+      summary: Ubah nama atau urutan board (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nama: { type: string }
+                urutan: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoardDetail" }
+    delete:
+      summary: Hapus lunak board (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+  /boards/{id}/columns:
+    post:
+      summary: Tambah kolom bertipe (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/BoardID" }, { $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [tipe, judul]
+              properties:
+                tipe: { $ref: "#/components/schemas/ColumnType" }
+                judul: { type: string, maxLength: 100 }
+                konfigurasi:
+                  type: object
+                  description: |
+                    status: {"labels":[{"id","judul","warna"}]} (kosong = label bawaan);
+                    number: {"satuan"}; tipe lain tanpa konfigurasi.
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Column" }
+        "422": { description: validation }
+  /columns/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      summary: Ubah judul, urutan, atau konfigurasi kolom (tipe tidak dapat diubah)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                judul: { type: string }
+                urutan: { type: number }
+                konfigurasi: { type: object }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Column" }
+        "409": { description: label_in_use (label status masih dipakai item) }
+    delete:
+      summary: Hapus lunak kolom; nilai sel tetap tersimpan tetapi tidak ditampilkan
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+  /boards/{id}/groups:
+    post:
+      summary: Tambah grup (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/BoardID" }, { $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [judul]
+              properties:
+                judul: { type: string, maxLength: 100 }
+                warna: { $ref: "#/components/schemas/Color" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+  /groups/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      summary: Ubah judul, warna, atau urutan grup (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                judul: { type: string }
+                warna: { $ref: "#/components/schemas/Color" }
+                urutan: { type: number }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Group" }
+    delete:
+      summary: Hapus lunak grup kosong (manager efektif)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "409": { description: "group_not_empty, last_group" }
+  /boards/{id}/items:
+    parameters: [{ $ref: "#/components/parameters/BoardID" }]
+    get:
+      summary: Item aktif, paginasi kursor (urut id)
+      description: Klien mengurutkan tampilan menurut urutan grup lalu urutan item.
+      parameters:
+        - { name: group_id, in: query, schema: { type: string, format: uuid } }
+        - { name: kursor, in: query, description: Nilai kursor_berikut halaman sebelumnya, schema: { type: string, format: uuid } }
+        - { name: batas, in: query, schema: { type: integer, default: 200, maximum: 1000 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Item" } }
+                  kursor_berikut: { type: [string, "null"], format: uuid }
+    post:
+      summary: Buat item di akhir grup (member efektif ke atas)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [group_id, judul]
+              properties:
+                group_id: { type: string, format: uuid }
+                judul: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+  /items/{id}:
+    parameters: [{ $ref: "#/components/parameters/ItemID" }]
+    description: |
+      Hak ubah: manager untuk semua item; member hanya item yang ia buat atau yang
+      menugaskannya di kolom person. Hak hapus: manager, atau member untuk item buatannya.
+    get:
+      summary: Detail item
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+    patch:
+      summary: Ubah judul item
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [judul]
+              properties:
+                judul: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "403": { description: Tidak berhak mengubah item ini }
+    delete:
+      summary: Hapus lunak item
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "403": { description: Tidak berhak menghapus item ini }
+  /items/{id}/move:
+    post:
+      summary: Pindah item ke grup (di board yang sama), tepat setelah item acuan
+      parameters: [{ $ref: "#/components/parameters/ItemID" }, { $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [group_id]
+              properties:
+                group_id: { type: string, format: uuid }
+                setelah_item_id:
+                  type: [string, "null"]
+                  format: uuid
+                  description: Kosong atau null = posisi paling atas grup
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "422": { description: Grup atau item acuan tidak valid }
+  /items/{id}/values/{columnId}:
+    put:
+      summary: Isi atau hapus (null) satu sel item
+      parameters:
+        - { $ref: "#/components/parameters/ItemID" }
+        - { name: columnId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/CSRF" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nilai]
+              properties:
+                nilai:
+                  description: |
+                    text: string (≤2000); status: id label; priority: rendah|sedang|tinggi|kritis;
+                    person: array UUID anggota proyek (≤20); date: "YYYY-MM-DD";
+                    timeline: {"mulai","selesai"}; number: angka; progress: bulat 0–100;
+                    dependency: hanya-baca (M4). null menghapus sel.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Item" }
+        "422": { description: "validation, read_only_column" }
+  /admin/users:
+    description: |
+      Semua rute /admin hanya untuk peran Admin dan dapat dibatasi per jaringan
+      lewat ADMIN_ALLOWED_CIDRS (403 forbidden_network).
+    get:
+      summary: Daftar pengguna
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: peran, in: query, schema: { $ref: "#/components/schemas/Role" } }
+        - { name: aktif, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AdminUser" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Buat akun. Peran default viewer. Sandi sementara dikembalikan sekali.
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama, email]
+              properties:
+                nama: { type: string, maxLength: 200 }
+                email: { type: string }
+                peran: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithTempPassword" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { description: email_taken }
+        "422": { description: validation }
+  /admin/users/{id}:
+    parameters: [{ $ref: "#/components/parameters/UserID" }]
+    get:
+      summary: Detail pengguna
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "404": { description: not_found }
+    patch:
+      summary: Ubah nama, email, atau peran
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nama: { type: string }
+                email: { type: string }
+                peran: { $ref: "#/components/schemas/Role" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "409": { description: "email_taken, atau last_admin (Admin aktif terakhir tidak dapat diturunkan)" }
+        "422": { description: validation }
+  /admin/users/{id}/deactivate:
+    post:
+      summary: Nonaktifkan akun dan cabut semua sesinya
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "409": { description: "last_admin, atau self_action (tidak dapat menonaktifkan diri sendiri)" }
+  /admin/users/{id}/activate:
+    post:
+      summary: Aktifkan kembali akun
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/users/{id}/reset-password:
+    post:
+      summary: Buat sandi sementara baru, buka kunci, cabut semua sesi
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK. Sandi sementara dikembalikan sekali.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithTempPassword" }
+        "409": { description: self_action (Admin memakai /auth/password untuk dirinya) }
+  /admin/users/{id}/unlock:
+    post:
+      summary: Buka kunci login dan reset hitungan gagal
+      parameters: [{ $ref: "#/components/parameters/UserID" }, { $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+  /admin/audit-log:
+    get:
+      summary: Audit log, terbaru lebih dulu, paginasi kursor
+      parameters:
+        - { name: entitas, in: query, schema: { type: string } }
+        - { name: entitas_id, in: query, schema: { type: string } }
+        - { name: aktor_id, in: query, schema: { type: string, format: uuid } }
+        - { name: kursor, in: query, description: Nilai kursor_berikut dari halaman sebelumnya, schema: { type: integer } }
+        - { name: batas, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AuditEntry" } }
+                  kursor_berikut: { type: [integer, "null"] }
+components:
+  parameters:
+    CSRF:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string }
+    ProjectID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    BoardID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ItemID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Forbidden:
+      description: Bukan Admin (forbidden) atau di luar jaringan yang diizinkan (forbidden_network)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthenticated:
+      description: Sesi tidak ada atau kedaluwarsa
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Kode galat, mis. invalid_credentials, unauthenticated, csrf, password_change_required
+        message: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        email: { type: string }
+        peran: { type: string, enum: [admin, pmo, project_manager, member, viewer] }
+        wajib_ganti_sandi:
+          type: boolean
+          description: Bila true, semua rute selain /auth/me, /auth/password, dan /auth/logout menjawab 403 password_change_required.
+    Role:
+      type: string
+      enum: [admin, pmo, project_manager, member, viewer]
+    Priority:
+      type: string
+      enum: [rendah, sedang, tinggi, kritis]
+      default: sedang
+    ProjectRole:
+      type: string
+      enum: [manager, member, viewer]
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        pemilik_id: { type: string, format: uuid }
+        pemilik_nama: { type: string }
+        mulai: { type: [string, "null"], format: date }
+        selesai: { type: [string, "null"], format: date }
+        prioritas: { $ref: "#/components/schemas/Priority" }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+        diarsipkan_pada: { type: [string, "null"], format: date-time }
+        peran_saya:
+          $ref: "#/components/schemas/ProjectRole"
+          description: Hak efektif pengguna yang meminta
+    ColumnType:
+      type: string
+      enum: [text, status, person, date, timeline, number, progress, priority, dependency]
+    Color:
+      type: string
+      enum: [abu, biru, hijau, kuning, oranye, merah, ungu, tosca, merah_muda]
+    Board:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        nama: { type: string }
+        urutan: { type: number }
+    Column:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        tipe: { $ref: "#/components/schemas/ColumnType" }
+        judul: { type: string }
+        urutan: { type: number }
+        konfigurasi: { type: object }
+    Group:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        judul: { type: string }
+        warna: { $ref: "#/components/schemas/Color" }
+        urutan: { type: number }
+    BoardDetail:
+      allOf:
+        - { $ref: "#/components/schemas/Board" }
+        - type: object
+          properties:
+            kolom: { type: array, items: { $ref: "#/components/schemas/Column" } }
+            grup: { type: array, items: { $ref: "#/components/schemas/Group" } }
+            peran_saya: { $ref: "#/components/schemas/ProjectRole" }
+    Item:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+        judul: { type: string }
+        urutan: { type: number }
+        dibuat_oleh: { type: string, format: uuid }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+        nilai:
+          type: object
+          description: Peta column_id ke nilai sel (kolom terhapus tidak ditampilkan)
+          additionalProperties: true
+        bisa_ubah: { type: boolean, description: Hak pengguna yang meminta untuk mengubah item ini }
+        bisa_hapus: { type: boolean }
+    MemberList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: string, format: uuid }
+              nama: { type: string }
+              email: { type: string }
+              peran_global: { $ref: "#/components/schemas/Role" }
+              aktif: { type: boolean }
+              peran_proyek: { $ref: "#/components/schemas/ProjectRole" }
+              peran_efektif:
+                type: string
+                enum: [manager, member, viewer, ""]
+                description: Irisan peran global dan peran proyek; kosong bila akun nonaktif
+              ditambahkan_pada: { type: string, format: date-time }
+    UserSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        email: { type: string }
+    AdminUser:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        email: { type: string }
+        peran: { $ref: "#/components/schemas/Role" }
+        aktif: { type: boolean }
+        wajib_ganti_sandi: { type: boolean }
+        terkunci_hingga: { type: [string, "null"], format: date-time }
+        login_terakhir: { type: [string, "null"], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
+    UserWithTempPassword:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/AdminUser" }
+        sandi_sementara:
+          type: string
+          description: Hanya ditampilkan sekali. Tidak disimpan dan tidak masuk audit.
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        aktor_id: { type: [string, "null"], format: uuid }
+        entitas: { type: string }
+        entitas_id: { type: [string, "null"] }
+        aksi: { type: string }
+        sebelum: { type: [object, "null"] }
+        sesudah: { type: [object, "null"] }
+        ip: { type: [string, "null"] }
+        waktu: { type: string, format: date-time }
+    SessionResponse:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        csrf_token: { type: string }
