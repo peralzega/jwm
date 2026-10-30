@@ -60,7 +60,7 @@ export function Popover({
       ref={ref}
       role="dialog"
       aria-label={label}
-      className="fixed z-50 min-w-40 rounded border border-line bg-surface shadow-lg"
+      className="fixed z-50 min-w-(--panel-min-w) rounded border border-line bg-surface shadow-lg"
       style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
     >
       {children}
@@ -108,7 +108,7 @@ export function OptionList({
       aria-label={label}
       tabIndex={0}
       aria-activedescendant={`${base}-${index}`}
-      className="max-h-72 overflow-auto py-1 outline-none"
+      className="max-h-(--panel-max-h) overflow-auto py-(--space-sm) outline-none"
       onKeyDown={(e) => {
         const last = options.length - 1
         const keys: Record<string, () => void> = {
@@ -144,10 +144,10 @@ export function OptionList({
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onSelect(o.value)}
           onMouseEnter={() => setIndex(i)}
-          className={`px-d row-h flex cursor-pointer items-center gap-2 ${i === index ? 'bg-canvas' : ''}`}
+          className={`px-d row-h flex cursor-pointer items-center gap-d ${i === index ? 'bg-canvas' : ''}`}
         >
           {o.warna ? (
-            <span className={`tag-${o.warna} tag-fill inline-flex min-w-24 justify-center rounded px-2`}>{o.label}</span>
+            <span className={`tag-${o.warna} tag-fill inline-flex min-w-(--badge-min-w) justify-center rounded px-d`}>{o.label}</span>
           ) : (
             <span className="text-muted">{o.label}</span>
           )}

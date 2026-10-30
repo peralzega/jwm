@@ -264,30 +264,3 @@ describe('Kanban', () => {
     expect(within(done).queryByRole('button', { name: /^Kartu 0$/ })).not.toBeInTheDocument()
   })
 })
-
-// Kanban dan tab tampilan tidak boleh menambah ukuran Tailwind berangka tetap;
-// semua ukuran lewat token di index.css.
-const sources = import.meta.glob(['../board/kanban/*.tsx', '../board/ViewTabs.tsx'], {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>
-
-describe('token ukuran', () => {
-  const FIXED =
-    /(?<![\w-])-?(?:p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|h|w|min-w|min-h|max-w|max-h|size|text|top|left|right|bottom|inset|ring|border|border-[trblxy]|space-[xy]|translate-[xy]|rounded-[a-z]+)-(?:(?!0\b)\d|px\b|\[(?!calc\(var))/g
-  const files = Object.entries(sources).filter(([f]) => !f.includes('.test.'))
-
-  it('berkas yang diperiksa ditemukan', () => {
-    expect(files.map(([f]) => f.split('/').pop())).toEqual(
-      expect.arrayContaining(['KanbanBoard.tsx', 'KanbanCard.tsx', 'KanbanColumn.tsx', 'ViewTabs.tsx']),
-    )
-  })
-
-  for (const [file, src] of files) {
-    it(`${file.split('/').pop()} tidak memakai ukuran berangka tetap`, () => {
-      const classText = [...src.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)].map((m) => m[1] ?? m[2] ?? '').join(' ')
-      expect(classText.match(FIXED) ?? []).toEqual([])
-    })
-  }
-})

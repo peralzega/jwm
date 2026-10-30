@@ -69,6 +69,17 @@
   --focus-ring-w: 2px;
   --tab-line-w: 2px;
 
+  /* Label lebar tetap: persen progres, lencana di daftar pilihan. */
+  --pct-w: 36px;
+  --badge-min-w: 6rem;
+
+  /* Tata letak halaman. Ukuran rem ikut font dasar kepadatan. */
+  --page-pad: 16px;
+  --font-heading: 1.125rem;
+  --auth-top: 5rem;
+  --auth-card-w: 24rem;
+  --card-pad: 1.5rem;
+
   /* Kanban: lebar kolom dan tinggi kartu tetap (dipakai virtualisasi). */
   --kanban-col-w: 272px;
   --kanban-card-h: 64px;
@@ -101,6 +112,10 @@
   --bar-h: 6px;
   --panel-min-w: 12rem;
   --panel-max-h: 22rem;
+
+  --pct-w: 40px;
+  --badge-min-w: 7rem;
+  --page-pad: 20px;
 
   --kanban-col-w: 304px;
   --kanban-card-h: 80px;

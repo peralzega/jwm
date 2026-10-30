@@ -45,7 +45,7 @@ export function valueText(col: Column, item: Item, names: ReadonlyMap<string, st
 
 function Badge({ warna, children }: { warna: string; children: string }) {
   return (
-    <span className={`tag-${warna} tag-fill flex h-full w-full items-center justify-center truncate px-1`}>
+    <span className={`tag-${warna} tag-fill flex h-full w-full items-center justify-center truncate px-(--space-sm)`}>
       {children}
     </span>
   )
@@ -67,12 +67,12 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
       if (ids.length === 0) return null
       const list = ids.map((id) => names.get(id) ?? 'Pengguna')
       return (
-        <span className="px-d flex h-full items-center gap-1" title={list.join(', ')}>
+        <span className="px-d flex h-full items-center gap-(--space-sm)" title={list.join(', ')}>
           {list.slice(0, 3).map((nama, i) => (
             <span
               key={ids[i]}
               aria-hidden="true"
-              className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-accent text-[0.7rem] font-semibold text-white"
+              className="inline-flex size-(--avatar-size) shrink-0 items-center justify-center rounded-full bg-accent text-(length:--font-xs) font-semibold text-white"
             >
               {initials(nama)}
             </span>
@@ -89,11 +89,11 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
       const n = asNumber(v)
       if (n === null) return null
       return (
-        <span className="px-d flex h-full items-center gap-2">
-          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-canvas">
+        <span className="px-d flex h-full items-center gap-d">
+          <span className="h-(--bar-h) flex-1 overflow-hidden rounded-full bg-canvas">
             <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.min(100, Math.max(0, n))}%` }} />
           </span>
-          <span className="w-9 text-right tabular-nums">{n}%</span>
+          <span className="w-(--pct-w) text-right tabular-nums">{n}%</span>
         </span>
       )
     }

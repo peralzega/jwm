@@ -155,7 +155,7 @@ const ItemRow = memo(function ItemRow({
             }}
             className={`board-cell relative border-r border-line outline-none ${
               meta.kind === 'title' ? `${STICKY} bg-inherit` : ''
-            } ${active ? 'ring-2 ring-accent ring-inset' : ''} ${editable ? 'cursor-default' : ''}`}
+            } ${active ? 'ring-(length:--focus-ring-w) ring-accent ring-inset' : ''} ${editable ? 'cursor-default' : ''}`}
           >
             {editing && isInlineEditor(meta.kind === 'title' ? null : (meta.col ?? null)) && meta.kind !== 'actions' ? (
               <EditorSlot />
@@ -208,10 +208,10 @@ function GroupRow({
           onMouseDown={() => actions.activate({ r: index, c: 0 })}
           onClick={() => actions.toggleGroup(group.id)}
           className={`${STICKY} tag-bar px-d gap-d inline-flex h-full cursor-pointer items-center bg-canvas font-semibold outline-none ${
-            active ? 'ring-2 ring-accent ring-inset' : ''
+            active ? 'ring-(length:--focus-ring-w) ring-accent ring-inset' : ''
           }`}
         >
-          <span aria-hidden="true" className="inline-block w-3 text-muted">
+          <span aria-hidden="true" className="inline-block w-(--icon-size) text-muted">
             {r.collapsed ? '▸' : '▾'}
           </span>
           <span style={{ color: 'var(--tag)' }}>{group.judul}</span>
@@ -264,7 +264,7 @@ function AddRow({
               setJudul('')
             }
           }}
-          className={`${STICKY} board-cell px-d bg-surface outline-none ${active ? 'ring-2 ring-accent ring-inset' : ''}`}
+          className={`${STICKY} board-cell px-d bg-surface outline-none ${active ? 'ring-(length:--focus-ring-w) ring-accent ring-inset' : ''}`}
           style={{ width: 'var(--col-w-title)' }}
         />
       </div>

@@ -152,7 +152,7 @@ function InlineEditor({ col, item, label, initial, onCommit, onCancel, onInvalid
           onCancel()
         }
       }}
-      className={`board-cell px-d w-full border-2 bg-surface outline-none ${invalid ? 'border-danger' : 'border-accent'} ${
+      className={`board-cell px-d w-full border-(length:--focus-ring-w) bg-surface outline-none ${invalid ? 'border-danger' : 'border-accent'} ${
         numeric ? 'text-right tabular-nums' : ''
       }`}
     />
@@ -208,11 +208,11 @@ function PersonEditor({ col, item, anchor, label, members, onCommit, onCancel }:
           e.stopPropagation()
         }}
       >
-        <fieldset className="max-h-64 overflow-auto">
+        <fieldset className="max-h-(--panel-max-h) overflow-auto">
           <legend className="sr-only">{label}</legend>
           {candidates.length === 0 && <p className="px-d text-muted">Belum ada anggota proyek.</p>}
           {candidates.map((m, i) => (
-            <label key={m.user_id} className="px-d row-h flex cursor-pointer items-center gap-2 hover:bg-canvas">
+            <label key={m.user_id} className="px-d row-h flex cursor-pointer items-center gap-d hover:bg-canvas">
               <input
                 ref={i === 0 ? firstRef : undefined}
                 type="checkbox"
@@ -223,7 +223,7 @@ function PersonEditor({ col, item, anchor, label, members, onCommit, onCancel }:
             </label>
           ))}
         </fieldset>
-        <div className="px-d gap-d flex justify-end border-t border-line pt-1">
+        <div className="px-d gap-d flex justify-end border-t border-line pt-(--space-sm)">
           <Button onClick={onCancel}>Batal</Button>
           <Button variant="primary" onClick={save}>
             Simpan
@@ -265,11 +265,11 @@ function TimelineEditor({ col, item, anchor, label, onCommit, onCancel, onInvali
           e.stopPropagation()
         }}
       >
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-(--space-sm)">
           Mulai
           <input ref={firstRef} type="date" className="row-h px-d rounded border border-line" value={mulai} onChange={(e) => setMulai(e.target.value)} />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-(--space-sm)">
           Selesai
           <input type="date" className="row-h px-d rounded border border-line" value={selesai} onChange={(e) => setSelesai(e.target.value)} />
         </label>

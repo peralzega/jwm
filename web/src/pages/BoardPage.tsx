@@ -6,7 +6,7 @@ import { api, errorMessage } from '../api/client'
 import type { BoardDetail, Group, Member } from '../api/types'
 import { BoardTable } from '../board/BoardTable'
 import { statusColumns } from '../board/kanban/columns'
-import { KanbanBoard } from '../board/kanban/KanbanBoard'
+import { LazyKanban } from '../board/LazyKanban'
 import { parseView, ViewTabs } from '../board/ViewTabs'
 import { useBoardItems, useItemMutations } from '../board/useBoardItems'
 import { Alert, Button, Loading } from '../components/ui'
@@ -93,7 +93,7 @@ export function BoardPage() {
           <Link to={`/proyek/${b.project_id}`} className="text-muted hover:underline">
             Kembali ke proyek
           </Link>
-          <h1 className="text-lg font-semibold">{b.nama}</h1>
+          <h1 className="text-(length:--font-heading) font-semibold">{b.nama}</h1>
         </div>
         {b.peran_saya === 'manager' && <AddGroupForm boardId={b.id} />}
       </div>
@@ -127,7 +127,7 @@ export function BoardPage() {
         <p className="px-d py-d text-muted">Board ini belum memiliki kolom status untuk Kanban.</p>
       )}
       {items.data && view === 'kanban' && statusCol && (
-        <KanbanBoard
+        <LazyKanban
           board={b}
           statusCol={statusCol}
           items={items.data}

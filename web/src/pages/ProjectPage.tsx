@@ -169,7 +169,7 @@ function MembersPanel({ project, canManage }: { project: Project; canManage: boo
       {change.isError && <Alert>{errorMessage(change.error)}</Alert>}
       {members.isPending && <Loading />}
       {members.data && (
-        <table className="mt-2 w-full text-left">
+        <table className="mt-(--density-gap) w-full text-left">
           <thead>
             <tr className="row-h border-b border-line text-muted">
               <th className="px-d font-medium">Nama</th>
@@ -190,7 +190,7 @@ function MembersPanel({ project, canManage }: { project: Project; canManage: boo
                   {canManage && !archived ? (
                     <select
                       aria-label={`Peran proyek ${m.nama}`}
-                      className="rounded border border-line bg-surface px-1"
+                      className="rounded border border-line bg-surface px-(--space-sm)"
                       value={m.peran_proyek}
                       onChange={(e) => change.mutate({ userId: m.user_id, peran: e.target.value as ProjectRole })}
                     >
@@ -262,7 +262,7 @@ function BoardsPanel({ project, canManage }: { project: Project; canManage: bool
         ))}
       </ul>
       {canManage && project.diarsipkan_pada === null && (
-        <form onSubmit={submit} className="gap-d mt-2 flex items-end" aria-label="Buat board">
+        <form onSubmit={submit} className="gap-d mt-(--density-gap) flex items-end" aria-label="Buat board">
           <TextField label="Nama board baru" value={nama} onChange={(e) => setNama(e.target.value)} />
           <Button type="submit" variant="primary" disabled={!nama || create.isPending}>
             Buat board
@@ -293,7 +293,7 @@ export function ProjectPage() {
         <Link to="/" className="text-muted hover:underline">
           Proyek
         </Link>
-        <h1 className="text-lg font-semibold">
+        <h1 className="text-(length:--font-heading) font-semibold">
           {p.nama} {p.diarsipkan_pada && <span className="text-muted">(diarsipkan)</span>}
         </h1>
         <p className="text-muted">
