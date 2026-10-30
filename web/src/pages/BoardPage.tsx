@@ -5,7 +5,9 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { api, errorMessage } from '../api/client'
 import type { BoardDetail, Group, Member } from '../api/types'
 import { BoardTable } from '../board/BoardTable'
+import { parseScale, SCALES } from '../board/gantt/scale'
 import { statusColumns } from '../board/kanban/columns'
+import { LazyGantt } from '../board/LazyGantt'
 import { LazyKanban } from '../board/LazyKanban'
 import { isBoardView, parseView, ViewTabsList } from '../board/ViewTabs'
 import { Tabs, TabsContent } from '../components/ui/tabs'
@@ -74,6 +76,9 @@ export function BoardPage() {
   const view = parseView(params.get('tampilan'))
   const statusCols = statusColumns(b.kolom)
   const statusCol = statusCols.find((c) => c.id === params.get('status')) ?? statusCols[0]
+  const timelineCols = b.kolom.filter((c) => c.tipe === 'timeline').sort((x, y) => x.urutan - y.urutan)
+  const timelineCol = timelineCols.find((c) => c.id === params.get('timeline')) ?? timelineCols[0]
+  const scale = parseScale(params.get('skala'))
 
   function setParam(key: string, value: string | null) {
     setParams(
@@ -122,6 +127,38 @@ export function BoardPage() {
             </select>
           </label>
         )}
+        {view === 'gantt' && (
+          <div className="gap-d flex flex-wrap items-center">
+            {timelineCols.length > 1 && timelineCol && (
+              <label className="gap-d flex items-center">
+                Kolom timeline
+                <select
+                  className="row-h px-d rounded border border-line bg-surface"
+                  value={timelineCol.id}
+                  onChange={(e) => setParam('timeline', e.target.value)}
+                >
+                  {timelineCols.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.judul}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div role="group" aria-label="Skala waktu" className="flex">
+              {SCALES.map((s) => (
+                <Button
+                  key={s.id}
+                  variant={s.id === scale ? 'primary' : 'secondary'}
+                  aria-pressed={s.id === scale}
+                  onClick={() => setParam('skala', s.id === 'minggu' ? null : s.id)}
+                >
+                  {s.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div aria-live="polite">{error && <Alert>{error}</Alert>}</div>
       {items.isPending && (
@@ -141,6 +178,21 @@ export function BoardPage() {
             items={items.data}
             members={members.data?.items ?? NO_MEMBERS}
             mutations={mutations}
+          />
+        )}
+      </TabsContent>
+      <TabsContent value="gantt">
+        {items.data && !timelineCol && (
+          <p className="px-d py-d text-muted-foreground">Board ini belum memiliki kolom timeline untuk Gantt.</p>
+        )}
+        {items.data && timelineCol && (
+          <LazyGantt
+            board={b}
+            items={items.data}
+            timelineCol={timelineCol}
+            scale={scale}
+            mutations={mutations}
+            onError={setError}
           />
         )}
       </TabsContent>

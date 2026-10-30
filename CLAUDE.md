@@ -22,8 +22,10 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
 - Realtime: Server-Sent Events (SSE). Pindah ke WebSocket hanya bila perlu.
 - Frontend: React + TypeScript + Vite, Tailwind, TanStack Table,
   TanStack Virtual, dnd-kit (drag-and-drop).
-- Gantt: frappe-gantt (MIT). Pustaka ini tidak menghitung jalur kritis;
-  hitung di backend dan kirim penandanya lewat API.
+- Gantt: komponen SVG dan React buatan sendiri (`web/src/board/gantt`), tanpa
+  pustaka Gantt pihak ketiga. Alasannya: frappe-gantt, SVAR, dan DHTMLX tidak lolos
+  syarat XSS, CSP, keyboard/ARIA, dan token (lihat `docs/SPEC.md` M3). Jalur kritis
+  dihitung di backend dan penandanya dikirim lewat API.
   Dilarang memakai pustaka berlisensi GPL atau komersial tanpa persetujuan.
   Verifikasi lisensi pada repositori resmi saat instalasi.
 - Pengujian: `go test`, testify, testcontainers-go; Vitest + Testing Library.

@@ -152,6 +152,17 @@
   /* Kanban: lebar kolom dan tinggi kartu tetap (dipakai virtualisasi). */
   --kanban-col-w: 272px;
   --kanban-card-h: 64px;
+
+  /* Gantt: panel judul, lebar satu hari per skala, batang, pegangan, panah. */
+  --gantt-list-w: 280px;
+  --gantt-day-hari: 28px;
+  --gantt-day-minggu: 12px;
+  --gantt-day-bulan: 4px;
+  --gantt-bar-h: 20px;
+  --gantt-handle-w: 6px;
+  --gantt-arrow-gap: 8px;
+  --gantt-arrow-w: 1.5px;
+  --gantt-today-w: 2px;
 }
 
 :root[data-density="normal"] {
@@ -188,6 +199,14 @@
 
   --kanban-col-w: 304px;
   --kanban-card-h: 80px;
+
+  --gantt-list-w: 320px;
+  --gantt-day-hari: 36px;
+  --gantt-day-minggu: 16px;
+  --gantt-day-bulan: 5px;
+  --gantt-bar-h: 26px;
+  --gantt-handle-w: 8px;
+  --gantt-arrow-gap: 10px;
 }
 
 html {
@@ -281,4 +300,48 @@ body {
   min-width: 0;
   overflow: hidden;
   contain: strict;
+}
+
+/* Gantt: --gantt-day diisi komponen dengan token skala aktif. */
+.gantt-row {
+  display: flex;
+  height: var(--density-row);
+  contain: layout style;
+}
+
+.gantt-header {
+  height: calc(2 * var(--density-row));
+}
+
+.gantt-tier {
+  height: var(--density-row);
+}
+
+/* Sabtu dan Minggu diarsir; sumbu waktu selalu dimulai hari Senin. */
+.gantt-weekends {
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(5 * var(--gantt-day)),
+    var(--muted) calc(5 * var(--gantt-day)) calc(7 * var(--gantt-day))
+  );
+}
+
+.gantt-bar {
+  top: calc((var(--density-row) - var(--gantt-bar-h)) / 2);
+  height: var(--gantt-bar-h);
+}
+
+.gantt-handle {
+  width: var(--gantt-handle-w);
+  cursor: ew-resize;
+}
+
+.gantt-today {
+  width: var(--gantt-today-w);
+}
+
+.gantt-arrow {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--gantt-arrow-w);
 }

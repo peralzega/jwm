@@ -45,6 +45,17 @@ type BoardColumn struct {
 	DihapusPada     *time.Time
 }
 
+type Dependency struct {
+	ID            uuid.UUID
+	BoardID       uuid.UUID
+	PredecessorID uuid.UUID
+	SuccessorID   uuid.UUID
+	Tipe          string
+	LagHari       int32
+	DibuatOleh    uuid.UUID
+	DibuatPada    time.Time
+}
+
 type Group struct {
 	ID          uuid.UUID
 	BoardID     uuid.UUID

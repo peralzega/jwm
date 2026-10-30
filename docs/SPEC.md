@@ -95,7 +95,8 @@ board_columns(id, board_id, tipe, judul, urutan, konfigurasi_json)
 groups(id, board_id, judul, warna, urutan)
 items(id, group_id, judul, urutan, induk_id, dibuat_oleh, dibuat_pada)
 item_values(item_id, column_id, nilai_json)      -- nilai per kolom
-dependencies(id, predecessor_id, successor_id, tipe, lag_hari)
+dependencies(id, board_id, predecessor_id, successor_id, tipe, lag_hari,
+             dibuat_oleh, dibuat_pada)            -- UNIQUE (predecessor_id, successor_id)
 comments(id, item_id, penulis_id, isi, dibuat_pada)
 automation_rules(id, board_id, pemicu_json, kondisi_json, aksi_json, aktif)
 automation_runs(id, rule_id, item_id, hasil, waktu)
@@ -141,16 +142,33 @@ Penerimaan:
 ### M3. Timeline dan Gantt (Fase 2)
 Penerimaan:
 - Item berkolom timeline tampil sebagai batang di Gantt.
-- Ubah tanggal dengan menyeret batang, tersimpan ke database.
+- Ubah tanggal dengan menyeret batang, tersimpan ke database. Keyboard setara:
+  panah menggeser, Shift+panah mengubah tanggal selesai, Enter membuka editor tanggal.
 - Garis hari ini dan zoom (hari, minggu, bulan).
 - Panah dependensi tergambar antar batang.
-- Pustaka Gantt tidak menghitung jalur kritis. Perhitungan CPM tetap di backend (M4).
+- Tabel `dependencies` dan API-nya (daftar, tambah, hapus; tipe FS):
+  - dependensi melingkar ditolak dengan pesan jelas yang menyebut kedua item;
+  - dependensi antar-board dan ke diri sendiri ditolak;
+  - pelaku harus berhak mengubah kedua item;
+  - pasangan (predecessor, successor) unik;
+  - perubahan tercatat di `audit_log`.
+- Di M3, menyeret batang dapat melanggar aturan FS. Panah yang dilanggar
+  ditandai putus-putus merah. Pergeseran otomatis successor baru di M4.
+- Gantt dibangun sendiri (SVG dan React, `web/src/board/gantt`), bukan pustaka
+  pihak ketiga. frappe-gantt 1.2.2, SVAR React Gantt 2.8.2, dan DHTMLX Gantt
+  Community 10.0.3 sudah diperiksa dan tidak lolos semua kriteria:
+  - nama tugas lewat `innerHTML` (XSS);
+  - atribut `style` inline yang melanggar CSP;
+  - keyboard dan ARIA;
+  - ukuran lewat token;
+  - virtualisasi baris.
+- Gantt tidak menghitung jalur kritis. Perhitungan CPM tetap di backend (M4).
   Frontend hanya menyorot batang yang ditandai kritis oleh API.
 
 ### M4. Dependensi dan Critical Path (Fase 2)
 Penerimaan:
 - Mendukung FS (utama). SS, FF, SF opsional pada fase lanjut.
-- Dependensi melingkar ditolak dengan pesan jelas.
+- Memakai tabel dan API dependensi dari M3, termasuk penolakan siklusnya.
 - Perhitungan CPM: ES, EF, LS, LF, slack, dan penanda jalur kritis.
 - Durasi dihitung dalam hari kerja. Sabtu dan Minggu otomatis libur.
   **[ASUMSI]** Pola ini sesuai jam kerja JIEP.
@@ -289,9 +307,10 @@ Estimasi total: sekitar 3–5 bulan untuk satu orang dengan Claude Code.
    PostgreSQL. Peran dikelola di dalam aplikasi. Google Workspace hanya untuk email.
 3. (Terjawab) Pilot 5–6 orang tim IT; rollout 20–50 orang. Jumlah proyek aktif belum diketahui.
 4. (Terjawab) Kanal notifikasi hanya email.
-5. (Terjawab) frappe-gantt (MIT) sebagai pilihan awal. Verifikasi ulang lisensi
-   dan versi pada berkas repositori resmi saat instalasi. Hindari dhtmlxGantt
-   edisi GPL v2 kecuali ada lisensi komersial atau kebijakan sumber terbuka.
+5. (Terjawab, direvisi di M3) Gantt dibangun sendiri. frappe-gantt, SVAR React
+   Gantt, dan DHTMLX Gantt Community diperiksa. Ketiganya berlisensi MIT, tetapi
+   tidak lolos syarat keamanan (XSS, CSP), aksesibilitas, atau token ukuran.
+   Rincian di M3.
 6. (Terjawab) Hari libur diinput manual oleh Admin. Tanpa fitur lanjutan.
 
 ## 10. Prompt pembuka untuk Claude Code
