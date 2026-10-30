@@ -125,4 +125,5 @@ type User struct {
 	LoginTerakhir   *time.Time
 	DibuatPada      time.Time
 	DiubahPada      time.Time
+	Kepadatan       string
 }

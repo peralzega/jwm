@@ -2,10 +2,12 @@ package board_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -473,6 +475,96 @@ func TestArchivedProjectIsReadOnly(t *testing.T) {
 	assert.Equal(t, http.StatusOK, fx.manager.Do(http.MethodGet, itemPath(id, ""), nil).Status)
 }
 
+// insertItems menyisipkan n item sekaligus dalam satu pernyataan: urutan,
+// judul, dan dibuat_pada identik (nilai kembar); hanya id yang berbeda.
+func (fx *fixture) insertItems(n int) {
+	fx.t.Helper()
+	_, err := fx.pool.Exec(context.Background(), `
+		INSERT INTO items (board_id, group_id, judul, urutan, dibuat_oleh)
+		SELECT $1, $2, 'Kembar', 1024, $3 FROM generate_series(1, $4)`,
+		fx.boardID, fx.groupID, fx.managerID, n)
+	require.NoError(fx.t, err)
+}
+
+// pageAll membaca semua item lewat API dan mengembalikan id per halaman.
+func (fx *fixture) pageAll(batas int) (pages [][]string, cursors int) {
+	fx.t.Helper()
+	cursor := ""
+	for range 100 {
+		path := fx.boardPath(fmt.Sprintf("/items?batas=%d", batas))
+		if cursor != "" {
+			path += "&kursor=" + cursor
+		}
+		r := fx.manager.Do(http.MethodGet, path, nil)
+		require.Equal(fx.t, http.StatusOK, r.Status, r.Raw)
+		ids := []string{}
+		for _, it := range r.Body["items"].([]any) {
+			ids = append(ids, it.(map[string]any)["id"].(string))
+		}
+		pages = append(pages, ids)
+		next, ok := r.Body["kursor_berikut"].(string)
+		if !ok {
+			assert.Nil(fx.t, r.Body["kursor_berikut"], "akhir data: kursor_berikut null")
+			return pages, cursors
+		}
+		cursors++
+		cursor = next
+	}
+	fx.t.Fatal("paginasi tidak berhenti")
+	return nil, 0
+}
+
+func TestItemPaginationBoundaries(t *testing.T) {
+	tests := []struct {
+		name      string
+		items     int
+		batas     int
+		wantSizes []int
+	}{
+		{"kosong: satu halaman tanpa kursor", 0, 3, []int{0}},
+		{"tepat satu halaman: tanpa kursor dan tanpa halaman kosong", 3, 3, []int{3}},
+		{"satu halaman + 1", 4, 3, []int{3, 1}},
+		{"tepat dua halaman", 6, 3, []int{3, 3}},
+		{"batas 1", 2, 1, []int{1, 1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fx := newFixture(t)
+			fx.insertItems(tt.items)
+			pages, cursors := fx.pageAll(tt.batas)
+			sizes := make([]int, len(pages))
+			for i, p := range pages {
+				sizes[i] = len(p)
+			}
+			assert.Equal(t, tt.wantSizes, sizes)
+			assert.Equal(t, len(tt.wantSizes)-1, cursors)
+		})
+	}
+}
+
+func TestItemPaginationStableWithTies(t *testing.T) {
+	fx := newFixture(t)
+	fx.insertItems(7)
+
+	first, _ := fx.pageAll(2)
+	second, _ := fx.pageAll(2)
+	assert.Equal(t, first, second, "urutan sama pada pembacaan ulang")
+
+	var flat []string
+	for _, p := range first {
+		flat = append(flat, p...)
+	}
+	assert.Len(t, flat, 7)
+	sorted := slices.Clone(flat)
+	slices.Sort(sorted)
+	assert.Equal(t, sorted, flat, "urut menurut id, bukan urutan/judul/dibuat_pada yang kembar")
+	assert.Len(t, slices.Compact(sorted), 7, "tidak ada item ganda antar halaman")
+
+	// Halaman lebih besar menghasilkan urutan yang sama.
+	whole, _ := fx.pageAll(board.MaxItemLimit)
+	assert.Equal(t, [][]string{flat}, whole)
+}
+
 func TestItemPaginationAndDeletedBoard(t *testing.T) {
 	fx := newFixture(t)
 	want := map[string]bool{}
@@ -501,7 +593,7 @@ func TestItemPaginationAndDeletedBoard(t *testing.T) {
 		cursor = next
 	}
 	assert.Equal(t, want, got)
-	assert.Equal(t, 3, pages)
+	assert.Equal(t, 3, pages) // 2 + 2 + 1
 	assert.Equal(t, http.StatusBadRequest, fx.manager.Do(http.MethodGet, fx.boardPath("/items?batas=nol"), nil).Status)
 
 	require.Equal(t, http.StatusNoContent, fx.manager.Do(http.MethodDelete, fx.boardPath(""), nil).Status)

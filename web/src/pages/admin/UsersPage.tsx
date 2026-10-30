@@ -24,7 +24,7 @@ function TempPasswordNotice({ result, onClose }: { result: UserWithTempPassword;
         <span>
           Sandi sementara untuk <strong>{result.user.email}</strong>:
         </span>
-        <code className="rounded bg-surface px-2 font-mono select-all" aria-label="Sandi sementara">
+        <code className="rounded bg-surface px-d font-mono select-all" aria-label="Sandi sementara">
           {result.sandi_sementara}
         </code>
         <span className="text-muted">Sampaikan secara aman. Sandi ini tidak akan ditampilkan lagi.</span>
@@ -113,7 +113,7 @@ function UserRow({
       <td className="px-d">
         <select
           aria-label={`Peran ${user.nama}`}
-          className="rounded border border-line bg-surface px-1"
+          className="rounded border border-line bg-surface px-(--space-sm)"
           value={user.peran}
           disabled={busy}
           onChange={(e) => action.mutate({ method: 'PATCH', path: '', body: { peran: e.target.value } })}
@@ -131,7 +131,7 @@ function UserRow({
         {user.wajib_ganti_sandi && ' · Wajib ganti sandi'}
       </td>
       <td className="px-d">
-        <div className="flex flex-wrap gap-1 py-1">
+        <div className="flex flex-wrap gap-(--space-sm) py-(--space-sm)">
           {user.aktif ? (
             <Button
               variant="danger"
@@ -177,7 +177,7 @@ export function UsersPage() {
 
   return (
     <div className="gap-d flex flex-col">
-      <h1 className="text-lg font-semibold">Pengguna</h1>
+      <h1 className="text-(length:--font-heading) font-semibold">Pengguna</h1>
       {temp && <TempPasswordNotice result={temp} onClose={() => setTemp(null)} />}
       {rowError && <Alert>{rowError}</Alert>}
       <Panel title="Buat akun">

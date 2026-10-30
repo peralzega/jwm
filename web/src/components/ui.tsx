@@ -17,13 +17,13 @@ export function Button({
   return (
     <button
       type="button"
-      className={`row-h px-d inline-flex items-center rounded border font-medium disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${VARIANT[variant]} ${className}`}
+      className={`row-h px-d inline-flex items-center rounded border font-medium disabled:opacity-50 focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-offset-(--line-w) focus-visible:outline-accent ${VARIANT[variant]} ${className}`}
       {...props}
     />
   )
 }
 
-const FIELD = 'row-h px-d w-full rounded border border-line bg-surface focus-visible:outline-2 focus-visible:outline-accent'
+const FIELD = 'row-h px-d w-full rounded border border-line bg-surface focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-accent'
 
 export function TextField({
   label,
@@ -32,7 +32,7 @@ export function TextField({
 }: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string }) {
   const id = useId()
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-(--space-sm)">
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
@@ -53,7 +53,7 @@ export function SelectField({
 }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; children: ReactNode }) {
   const id = useId()
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-(--space-sm)">
       <label htmlFor={id} className="font-medium">
         {label}
       </label>

@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router'
 
 import { ROLE_LABEL } from '../api/types'
 import { useLogout, useMe } from '../auth/session'
+import { DensityToggle } from './DensityToggle'
 import { Button } from './ui'
 
 const NAV = 'px-d row-h inline-flex items-center rounded hover:bg-canvas'
@@ -17,7 +18,7 @@ export function Layout() {
     <div className="min-h-screen">
       <header className="px-d gap-d flex items-center border-b border-line bg-surface">
         <span className="font-semibold text-accent">JWM</span>
-        <nav aria-label="Navigasi utama" className="flex gap-1">
+        <nav aria-label="Navigasi utama" className="flex gap-(--space-sm)">
           <NavLink to="/" end className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
             Proyek
           </NavLink>
@@ -27,12 +28,13 @@ export function Layout() {
             </NavLink>
           )}
         </nav>
-        <div className="gap-d ml-auto flex items-center py-1">
+        <div className="gap-d ml-auto flex items-center py-(--space-sm)">
           {user && (
             <span className="text-muted">
               {user.nama} · {ROLE_LABEL[user.peran]}
             </span>
           )}
+          <DensityToggle />
           <NavLink to="/ganti-sandi" className={NAV}>
             Ganti sandi
           </NavLink>
@@ -41,7 +43,7 @@ export function Layout() {
           </Button>
         </div>
       </header>
-      <main className="p-4">
+      <main className="p-(--page-pad)">
         <Outlet />
       </main>
     </div>

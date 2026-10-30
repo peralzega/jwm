@@ -59,6 +59,11 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
 - Komponen kecil, satu tanggung jawab. State server lewat TanStack Query.
 - Kepadatan diatur token desain (`compact` default, `normal` opsional).
 - Tinggi baris grid default 32 px. Font dasar 13 px. Gunakan token, bukan angka mentah.
+  Semua ukuran (jarak, ikon, avatar, panel, garis, tata letak) ditulis lewat token
+  di `web/src/index.css`, mis. `gap-(--space-sm)`, `px-d`, `size-(--avatar-size)`,
+  `ring-(length:--focus-ring-w)`. Kelas berangka tetap (`gap-2`, `text-lg`,
+  `-ml-px`, `text-[0.7rem]`) ditolak oleh `web/src/tokens.test.ts`. Token baru
+  didefinisikan untuk `compact` dan, bila berbeda, `normal`.
 - Grid wajib memakai virtualisasi baris.
 - Aksesibilitas dasar: fokus keyboard dan label ARIA pada kontrol interaktif.
 
@@ -103,6 +108,9 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
   `scripts/*.ps1`. Skrip memuat `.env` otomatis (`scripts/env.ps1`).
 - sqlc, goose, dan govulncheck dipasang sebagai direktif `tool` di `go.mod`
   dan dipanggil dengan `go tool <nama>`. Tidak perlu instalasi global.
+- Pesan commit selalu lewat berkas: `git commit -F <berkas>`. Windows PowerShell
+  5.1 memecah argumen program native yang berisi tanda kutip ganda, sehingga
+  `git commit -m "..."` dengan pesan multibaris bisa gagal atau terpotong.
 
 ## Perintah umum
 
@@ -114,6 +122,7 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
 .\scripts\migrate.ps1 [up|down|status]   # migrasi goose
 .\scripts\sqlc.ps1              # hasilkan kode query
 .\scripts\seed.ps1              # buat Admin pertama
+.\scripts\seed-demo.ps1 -Items 5000   # proyek demo untuk uji beban (ditolak di production)
 ```
 
 `web/go.mod` sengaja ada agar `go ... ./...` tidak memindai `web/node_modules`.

@@ -36,6 +36,53 @@
   --density-pad-x: 8px;
   --density-pad-y: 4px;
   --density-gap: 8px;
+
+  /* Lebar kolom tabel board per tipe. */
+  --col-w-title: 320px;
+  --col-w-text: 200px;
+  --col-w-status: 140px;
+  --col-w-priority: 120px;
+  --col-w-person: 150px;
+  --col-w-date: 120px;
+  --col-w-timeline: 180px;
+  --col-w-number: 110px;
+  --col-w-progress: 130px;
+  --col-w-dependency: 130px;
+  --col-w-actions: 40px;
+
+  /* Ruang di atas tabel board (header aplikasi, judul, bilah alat). */
+  --board-chrome: 10rem;
+  --board-min-h: 16rem;
+
+  /* Ukuran kecil: jarak, ikon, avatar, teks kecil, bilah, panel. */
+  --space-xs: 2px;
+  --space-sm: 4px;
+  --icon-size: 14px;
+  --avatar-size: 20px;
+  --font-xs: 11px;
+  --bar-h: 4px;
+  --panel-min-w: 10rem;
+  --panel-max-h: 18rem;
+
+  /* Garis: batas tipis, cincin fokus, penanda tab aktif. */
+  --line-w: 1px;
+  --focus-ring-w: 2px;
+  --tab-line-w: 2px;
+
+  /* Label lebar tetap: persen progres, lencana di daftar pilihan. */
+  --pct-w: 36px;
+  --badge-min-w: 6rem;
+
+  /* Tata letak halaman. Ukuran rem ikut font dasar kepadatan. */
+  --page-pad: 16px;
+  --font-heading: 1.125rem;
+  --auth-top: 5rem;
+  --auth-card-w: 24rem;
+  --card-pad: 1.5rem;
+
+  /* Kanban: lebar kolom dan tinggi kartu tetap (dipakai virtualisasi). */
+  --kanban-col-w: 272px;
+  --kanban-card-h: 64px;
 }
 
 :root[data-density="normal"] {
@@ -44,6 +91,34 @@
   --density-pad-x: 12px;
   --density-pad-y: 8px;
   --density-gap: 12px;
+
+  --col-w-title: 360px;
+  --col-w-text: 220px;
+  --col-w-status: 150px;
+  --col-w-priority: 130px;
+  --col-w-person: 170px;
+  --col-w-date: 130px;
+  --col-w-timeline: 200px;
+  --col-w-number: 120px;
+  --col-w-progress: 140px;
+  --col-w-dependency: 140px;
+  --col-w-actions: 48px;
+
+  --space-xs: 4px;
+  --space-sm: 6px;
+  --icon-size: 16px;
+  --avatar-size: 24px;
+  --font-xs: 12px;
+  --bar-h: 6px;
+  --panel-min-w: 12rem;
+  --panel-max-h: 22rem;
+
+  --pct-w: 40px;
+  --badge-min-w: 7rem;
+  --page-pad: 20px;
+
+  --kanban-col-w: 304px;
+  --kanban-card-h: 80px;
 }
 
 html {
@@ -92,4 +167,49 @@ body {
 .tag-fill {
   background: var(--tag);
   color: #fff;
+}
+
+.tag-dot {
+  background: var(--tag);
+}
+
+/* Tabel board: area gulir tunggal, header menempel, baris tinggi tetap. */
+.board-scroll {
+  height: calc(100dvh - var(--board-chrome));
+  min-height: var(--board-min-h);
+  overflow: auto;
+  contain: strict;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: var(--grid-cols);
+  height: var(--density-row);
+  width: max-content;
+  min-width: 100%;
+  /* Baris dan sel berukuran tetap: batasi perhitungan tata letak ke dalamnya. */
+  contain: layout style;
+}
+
+/* Kanban: kolom bergulir sendiri; tinggi mengikuti area board. */
+.kanban-scroll {
+  height: calc(100dvh - var(--board-chrome));
+  min-height: var(--board-min-h);
+}
+
+.kanban-card {
+  height: var(--kanban-card-h);
+}
+
+/* Slot virtual = kartu + jarak bawah; tingginya dibaca ulang saat kepadatan berganti. */
+.kanban-slot {
+  height: calc(var(--kanban-card-h) + var(--space-sm));
+  padding-bottom: var(--space-sm);
+}
+
+.board-cell {
+  height: var(--density-row);
+  min-width: 0;
+  overflow: hidden;
+  contain: strict;
 }

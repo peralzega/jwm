@@ -59,6 +59,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(RequireAuth(h.svc, h.cookies, h.log))
 		r.Get("/me", h.me)
+		r.With(RequirePasswordChanged).Patch("/me/preferensi", h.updatePreferences)
 		r.Post("/logout", h.logout)
 		r.With(httpx.LimitByIP(h.limiter)).Post("/password", h.changePassword)
 	})
@@ -112,6 +113,27 @@ func (h *Handler) writeInvalidCredentials(w http.ResponseWriter) {
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	p, _ := PrincipalFrom(r.Context())
 	httpx.WriteJSON(w, http.StatusOK, sessionResponse{User: p.User, CSRFToken: p.CSRFToken()})
+}
+
+func (h *Handler) updatePreferences(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Kepadatan *Density `json:"kepadatan"`
+	}
+	if err := httpx.DecodeJSON(w, r, &in); err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "Permintaan tidak valid.")
+		return
+	}
+	p, _ := PrincipalFrom(r.Context())
+	u, err := h.svc.UpdatePreferences(r.Context(), p, Preferences{Kepadatan: in.Kepadatan})
+	if errors.Is(err, ErrInvalidDensity) {
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation", err.Error())
+		return
+	}
+	if err != nil {
+		h.internal(w, r, "ubah preferensi", err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, sessionResponse{User: u, CSRFToken: p.CSRFToken()})
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {

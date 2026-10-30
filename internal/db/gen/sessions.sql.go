@@ -86,7 +86,7 @@ func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) (int
 }
 
 const getSessionWithUser = `-- name: GetSessionWithUser :one
-SELECT s.id, s.user_id, s.token_hash, s.kedaluwarsa, s.kedaluwarsa_mutlak, s.terakhir_aktif, s.ip, s.user_agent, s.dibuat_pada, u.id, u.nama, u.email, u.password_hash, u.peran, u.aktif, u.wajib_ganti_sandi, u.gagal_login, u.terkunci_hingga, u.login_terakhir, u.dibuat_pada, u.diubah_pada
+SELECT s.id, s.user_id, s.token_hash, s.kedaluwarsa, s.kedaluwarsa_mutlak, s.terakhir_aktif, s.ip, s.user_agent, s.dibuat_pada, u.id, u.nama, u.email, u.password_hash, u.peran, u.aktif, u.wajib_ganti_sandi, u.gagal_login, u.terkunci_hingga, u.login_terakhir, u.dibuat_pada, u.diubah_pada, u.kepadatan
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1
@@ -125,6 +125,7 @@ func (q *Queries) GetSessionWithUser(ctx context.Context, tokenHash []byte) (Get
 		&i.User.LoginTerakhir,
 		&i.User.DibuatPada,
 		&i.User.DiubahPada,
+		&i.User.Kepadatan,
 	)
 	return i, err
 }

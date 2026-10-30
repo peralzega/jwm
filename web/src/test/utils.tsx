@@ -14,7 +14,7 @@ export interface Call {
 }
 
 type Reply = { status: number; body?: unknown }
-type Handler = (call: Call) => Reply
+type Handler = (call: Call) => Reply | Promise<Reply>
 
 /**
  * Mengganti fetch dengan tabel rute "METHOD /path" (path tanpa /api/v1 dan
@@ -36,7 +36,7 @@ export function mockApi(handlers: Record<string, Handler | Reply>) {
       }
       calls.push(call)
       const h = handlers[`${method} ${path}`]
-      const reply = h === undefined ? { status: 404, body: { error: 'not_found', message: 'tidak ada' } } : typeof h === 'function' ? h(call) : h
+      const reply = h === undefined ? { status: 404, body: { error: 'not_found', message: 'tidak ada' } } : typeof h === 'function' ? await h(call) : h
       return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), { status: reply.status })
     }),
   )
@@ -44,7 +44,7 @@ export function mockApi(handlers: Record<string, Handler | Reply>) {
 }
 
 export function user(over: Partial<SessionUser> = {}): SessionUser {
-  return { id: 'u-1', nama: 'Budi', email: 'budi@jiep.co.id', peran: 'member', wajib_ganti_sandi: false, ...over }
+  return { id: 'u-1', nama: 'Budi', email: 'budi@jiep.co.id', peran: 'member', wajib_ganti_sandi: false, kepadatan: 'compact', ...over }
 }
 
 export function meReply(u: SessionUser | null): Reply {

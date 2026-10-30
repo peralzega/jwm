@@ -21,3 +21,18 @@ Prasyarat: Go, Node.js, dan PostgreSQL 18.
 
 Untuk menjalankan satu server saja: `.\scripts\build.ps1`, lalu
 `bin\jwm-api.exe` menyajikan API dan frontend di alamat `HTTP_ADDR`.
+
+## Fitur (Fase 1)
+
+- **Board, tampilan Tabel:** tabel padat bervirtualisasi (5.000+ baris), header
+  dan kolom judul menempel, edit langsung di sel per tipe kolom, navigasi
+  keyboard, grup dapat dilipat.
+- **Board, tampilan Kanban:** satu kolom per label status ditambah
+  "Tanpa status". Seret kartu dengan mouse, sentuhan (tahan sebentar), atau
+  keyboard (Spasi/Enter, panah kiri/kanan, Esc) untuk mengubah status.
+  Tampilan dipilih lewat tab dan tersimpan di URL (`?tampilan=kanban`).
+- **Kepadatan:** tombol Ringkas/Normal di header, disimpan per pengguna.
+- **Data demo:** `.\scripts\seed-demo.ps1 -Items 5000` membuat proyek contoh
+  untuk uji beban. Ditolak bila `APP_ENV=production`.
+
+Keputusan desain dicatat di `docs/adr/`.

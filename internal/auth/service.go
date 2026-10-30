@@ -50,10 +50,14 @@ type User struct {
 	Email           string    `json:"email"`
 	Peran           Role      `json:"peran"`
 	WajibGantiSandi bool      `json:"wajib_ganti_sandi"`
+	Kepadatan       Density   `json:"kepadatan"`
 }
 
 func toUser(u dbgen.User) User {
-	return User{ID: u.ID, Nama: u.Nama, Email: u.Email, Peran: Role(u.Peran), WajibGantiSandi: u.WajibGantiSandi}
+	return User{
+		ID: u.ID, Nama: u.Nama, Email: u.Email, Peran: Role(u.Peran), WajibGantiSandi: u.WajibGantiSandi,
+		Kepadatan: Density(u.Kepadatan),
+	}
 }
 
 // Principal adalah pengguna terautentikasi beserta sesinya.

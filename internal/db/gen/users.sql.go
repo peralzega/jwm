@@ -16,7 +16,7 @@ const adminResetPassword = `-- name: AdminResetPassword :one
 UPDATE users
 SET password_hash = $2, wajib_ganti_sandi = true, gagal_login = 0, terkunci_hingga = NULL, diubah_pada = now()
 WHERE id = $1
-RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan
 `
 
 type AdminResetPasswordParams struct {
@@ -40,6 +40,7 @@ func (q *Queries) AdminResetPassword(ctx context.Context, arg AdminResetPassword
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
@@ -78,7 +79,7 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (nama, email, password_hash, peran, wajib_ganti_sandi)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan
 `
 
 type CreateUserParams struct {
@@ -111,12 +112,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada FROM users WHERE lower(email) = lower($1::text)
+SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan FROM users WHERE lower(email) = lower($1::text)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -135,12 +137,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada FROM users WHERE id = $1
+SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -159,12 +162,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
 
 const getUserForUpdate = `-- name: GetUserForUpdate :one
-SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada FROM users WHERE id = $1 FOR UPDATE
+SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan FROM users WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error) {
@@ -183,6 +187,7 @@ func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, err
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
@@ -202,7 +207,7 @@ func (q *Queries) IncrementLoginFailures(ctx context.Context, id uuid.UUID) (int
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada FROM users
+SELECT id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan FROM users
 WHERE ($1::text IS NULL
        OR nama ILIKE '%' || $1 || '%'
        OR email ILIKE '%' || $1 || '%')
@@ -240,6 +245,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.LoginTerakhir,
 			&i.DibuatPada,
 			&i.DiubahPada,
+			&i.Kepadatan,
 		); err != nil {
 			return nil, err
 		}
@@ -338,7 +344,7 @@ func (q *Queries) SearchActiveUsers(ctx context.Context, q_ string) ([]SearchAct
 const setUserActive = `-- name: SetUserActive :one
 UPDATE users SET aktif = $2, diubah_pada = now()
 WHERE id = $1
-RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan
 `
 
 type SetUserActiveParams struct {
@@ -362,6 +368,7 @@ func (q *Queries) SetUserActive(ctx context.Context, arg SetUserActiveParams) (U
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
@@ -369,7 +376,7 @@ func (q *Queries) SetUserActive(ctx context.Context, arg SetUserActiveParams) (U
 const unlockUser = `-- name: UnlockUser :one
 UPDATE users SET gagal_login = 0, terkunci_hingga = NULL, diubah_pada = now()
 WHERE id = $1
-RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan
 `
 
 func (q *Queries) UnlockUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -388,6 +395,7 @@ func (q *Queries) UnlockUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
@@ -409,10 +417,42 @@ func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) 
 	return err
 }
 
+const updateUserDensity = `-- name: UpdateUserDensity :one
+UPDATE users SET kepadatan = $2, diubah_pada = now()
+WHERE id = $1
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan
+`
+
+type UpdateUserDensityParams struct {
+	ID        uuid.UUID
+	Kepadatan string
+}
+
+func (q *Queries) UpdateUserDensity(ctx context.Context, arg UpdateUserDensityParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserDensity, arg.ID, arg.Kepadatan)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Nama,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Peran,
+		&i.Aktif,
+		&i.WajibGantiSandi,
+		&i.GagalLogin,
+		&i.TerkunciHingga,
+		&i.LoginTerakhir,
+		&i.DibuatPada,
+		&i.DiubahPada,
+		&i.Kepadatan,
+	)
+	return i, err
+}
+
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users SET nama = $2, email = $3, peran = $4, diubah_pada = now()
 WHERE id = $1
-RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada
+RETURNING id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi, gagal_login, terkunci_hingga, login_terakhir, dibuat_pada, diubah_pada, kepadatan
 `
 
 type UpdateUserProfileParams struct {
@@ -443,6 +483,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.LoginTerakhir,
 		&i.DibuatPada,
 		&i.DiubahPada,
+		&i.Kepadatan,
 	)
 	return i, err
 }
