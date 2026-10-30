@@ -44,7 +44,7 @@ export function mockApi(handlers: Record<string, Handler | Reply>) {
 }
 
 export function user(over: Partial<SessionUser> = {}): SessionUser {
-  return { id: 'u-1', nama: 'Budi', email: 'budi@jiep.co.id', peran: 'member', wajib_ganti_sandi: false, ...over }
+  return { id: 'u-1', nama: 'Budi', email: 'budi@jiep.co.id', peran: 'member', wajib_ganti_sandi: false, kepadatan: 'compact', ...over }
 }
 
 export function meReply(u: SessionUser | null): Reply {

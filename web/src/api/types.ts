@@ -1,5 +1,9 @@
 // Tipe data API (lihat docs/openapi.yaml).
 
+import type { Density } from '../density'
+
+export type { Density }
+
 export type Role = 'admin' | 'pmo' | 'project_manager' | 'member' | 'viewer'
 export type ProjectRole = 'manager' | 'member' | 'viewer'
 export type Priority = 'rendah' | 'sedang' | 'tinggi' | 'kritis'
@@ -26,6 +30,7 @@ export interface SessionUser {
   email: string
   peran: Role
   wajib_ganti_sandi: boolean
+  kepadatan: Density
 }
 
 export interface SessionResponse {

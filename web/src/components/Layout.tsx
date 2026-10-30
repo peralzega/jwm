@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router'
 
 import { ROLE_LABEL } from '../api/types'
 import { useLogout, useMe } from '../auth/session'
+import { DensityToggle } from './DensityToggle'
 import { Button } from './ui'
 
 const NAV = 'px-d row-h inline-flex items-center rounded hover:bg-canvas'
@@ -33,6 +34,7 @@ export function Layout() {
               {user.nama} · {ROLE_LABEL[user.peran]}
             </span>
           )}
+          <DensityToggle />
           <NavLink to="/ganti-sandi" className={NAV}>
             Ganti sandi
           </NavLink>

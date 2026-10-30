@@ -36,6 +36,23 @@
   --density-pad-x: 8px;
   --density-pad-y: 4px;
   --density-gap: 8px;
+
+  /* Lebar kolom tabel board per tipe. */
+  --col-w-title: 320px;
+  --col-w-text: 200px;
+  --col-w-status: 140px;
+  --col-w-priority: 120px;
+  --col-w-person: 150px;
+  --col-w-date: 120px;
+  --col-w-timeline: 180px;
+  --col-w-number: 110px;
+  --col-w-progress: 130px;
+  --col-w-dependency: 130px;
+  --col-w-actions: 40px;
+
+  /* Ruang di atas tabel board (header aplikasi, judul, bilah alat). */
+  --board-chrome: 10rem;
+  --board-min-h: 16rem;
 }
 
 :root[data-density="normal"] {
@@ -44,6 +61,18 @@
   --density-pad-x: 12px;
   --density-pad-y: 8px;
   --density-gap: 12px;
+
+  --col-w-title: 360px;
+  --col-w-text: 220px;
+  --col-w-status: 150px;
+  --col-w-priority: 130px;
+  --col-w-person: 170px;
+  --col-w-date: 130px;
+  --col-w-timeline: 200px;
+  --col-w-number: 120px;
+  --col-w-progress: 140px;
+  --col-w-dependency: 140px;
+  --col-w-actions: 48px;
 }
 
 html {
@@ -92,4 +121,33 @@ body {
 .tag-fill {
   background: var(--tag);
   color: #fff;
+}
+
+.tag-dot {
+  background: var(--tag);
+}
+
+/* Tabel board: area gulir tunggal, header menempel, baris tinggi tetap. */
+.board-scroll {
+  height: calc(100dvh - var(--board-chrome));
+  min-height: var(--board-min-h);
+  overflow: auto;
+  contain: strict;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: var(--grid-cols);
+  height: var(--density-row);
+  width: max-content;
+  min-width: 100%;
+  /* Baris dan sel berukuran tetap: batasi perhitungan tata letak ke dalamnya. */
+  contain: layout style;
+}
+
+.board-cell {
+  height: var(--density-row);
+  min-width: 0;
+  overflow: hidden;
+  contain: strict;
 }
