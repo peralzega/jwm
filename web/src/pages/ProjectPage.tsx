@@ -16,6 +16,7 @@ import {
   type UserSummary,
 } from '../api/types'
 import { Alert, Button, Loading, Panel, SelectField, TextField } from '../components/ui'
+import { DASHBOARD_KEY, PORTFOLIOS_KEY, usePortfolios } from '../portfolio/queries'
 import { NotFoundPage } from './NotFoundPage'
 import { PROJECTS_KEY } from './ProjectsPage'
 
@@ -27,9 +28,13 @@ function ProjectSettings({ project }: { project: Project }) {
   const [prioritas, setPrioritas] = useState<Priority>(project.prioritas)
   const [mulai, setMulai] = useState(project.mulai ?? '')
   const [selesai, setSelesai] = useState(project.selesai ?? '')
+  const [portfolioId, setPortfolioId] = useState(project.portfolio_id ?? '')
+  const portfolios = usePortfolios()
   const refresh = (p: Project) => {
     qc.setQueryData(['project', p.id], p)
     void qc.invalidateQueries({ queryKey: PROJECTS_KEY })
+    void qc.invalidateQueries({ queryKey: DASHBOARD_KEY })
+    void qc.invalidateQueries({ queryKey: PORTFOLIOS_KEY })
   }
   const save = useMutation({
     mutationFn: () =>
@@ -38,6 +43,7 @@ function ProjectSettings({ project }: { project: Project }) {
         prioritas,
         mulai: mulai || null,
         selesai: selesai || null,
+        portfolio_id: portfolioId || null,
       }),
     onSuccess: refresh,
   })
@@ -61,7 +67,7 @@ function ProjectSettings({ project }: { project: Project }) {
         </Button>
       }
     >
-      <form onSubmit={submit} className="gap-d grid grid-cols-1 items-end md:grid-cols-5" aria-label="Ubah proyek">
+      <form onSubmit={submit} className="gap-d grid grid-cols-1 items-end md:grid-cols-6" aria-label="Ubah proyek">
         <TextField label="Nama proyek" value={nama} onChange={(e) => setNama(e.target.value)} disabled={archived} />
         <SelectField
           label="Prioritas"
@@ -83,6 +89,19 @@ function ProjectSettings({ project }: { project: Project }) {
           onChange={(e) => setSelesai(e.target.value)}
           disabled={archived}
         />
+        <SelectField
+          label="Portofolio"
+          value={portfolioId}
+          onChange={(e) => setPortfolioId(e.target.value)}
+          disabled={archived}
+        >
+          <option value="">Tanpa portofolio</option>
+          {portfolios.data?.map((pf) => (
+            <option key={pf.id} value={pf.id}>
+              {pf.nama}
+            </option>
+          ))}
+        </SelectField>
         <Button type="submit" variant="primary" disabled={archived || save.isPending}>
           Simpan
         </Button>
@@ -297,7 +316,8 @@ export function ProjectPage() {
           {p.nama} {p.diarsipkan_pada && <span className="text-muted-foreground">(diarsipkan)</span>}
         </h1>
         <p className="text-muted-foreground">
-          Pemilik {p.pemilik_nama} · prioritas {p.prioritas} · peran Anda{' '}
+          Pemilik {p.pemilik_nama} · prioritas {p.prioritas}
+          {p.portfolio_nama && ` · portofolio ${p.portfolio_nama}`} · peran Anda{' '}
           {p.peran_saya ? PROJECT_ROLE_LABEL[p.peran_saya] : '—'}
         </p>
       </div>

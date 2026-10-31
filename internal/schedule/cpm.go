@@ -222,18 +222,18 @@ type ItemSchedule struct {
 
 // dates mengubah titik mulai dan durasi menjadi tanggal. Item berdurasi nol
 // (titik lewat, atau seluruhnya di hari libur) memakai tanggal yang sama.
-func (r *cpmResult) dates(start, dur int) (string, string, error) {
+func (r *cpmResult) dates(start, dur int) (int, int, error) {
 	s, err := r.g.idx.dayAt(start)
 	if err != nil {
-		return "", "", err
+		return 0, 0, err
 	}
 	e := s
 	if dur > 0 {
 		if e, err = r.g.idx.dayAt(start + dur - 1); err != nil {
-			return "", "", err
+			return 0, 0, err
 		}
 	}
-	return formatDay(s), formatDay(e), nil
+	return s, e, nil
 }
 
 // items mengubah hasil menjadi daftar per item (urut id) beserta rentang hari
@@ -258,21 +258,20 @@ func (r *cpmResult) items() ([]ItemSchedule, Span, error) {
 			extend(n.Span.End)
 		}
 		if n.defined {
-			es, ef, err := r.dates(n.es, n.dur)
+			esD, efD, err := r.dates(n.es, n.dur)
 			if err != nil {
 				return nil, cover, err
 			}
-			ls, lf, err := r.dates(n.ls, n.dur)
+			lsD, lfD, err := r.dates(n.ls, n.dur)
 			if err != nil {
 				return nil, cover, err
 			}
+			es, ef, ls, lf := formatDay(esD), formatDay(efD), formatDay(lsD), formatDay(lfD)
 			slack := n.ls - n.es
 			it.ES, it.EF, it.LS, it.LF, it.Slack = &es, &ef, &ls, &lf, &slack
 			it.Kritis = slack <= 0
-			for _, d := range []string{es, lf} {
-				day, _ := parseDay(d)
-				extend(day)
-			}
+			extend(esD)
+			extend(lfD)
 		}
 		out = append(out, it)
 	}

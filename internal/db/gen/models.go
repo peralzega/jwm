@@ -87,20 +87,31 @@ type ItemValue struct {
 	DiubahPada time.Time
 }
 
+type Portfolio struct {
+	ID         uuid.UUID
+	Nama       string
+	DibuatOleh uuid.UUID
+	DibuatPada time.Time
+	DiubahPada time.Time
+}
+
 type Project struct {
-	ID             uuid.UUID
-	PortfolioID    *uuid.UUID
-	Nama           string
-	PemilikID      uuid.UUID
-	Mulai          pgtype.Date
-	Selesai        pgtype.Date
-	Prioritas      string
-	StatusManual   *string
-	Anggaran       pgtype.Numeric
-	DibuatOleh     uuid.UUID
-	DibuatPada     time.Time
-	DiubahPada     time.Time
-	DiarsipkanPada *time.Time
+	ID                 uuid.UUID
+	PortfolioID        *uuid.UUID
+	Nama               string
+	PemilikID          uuid.UUID
+	Mulai              pgtype.Date
+	Selesai            pgtype.Date
+	Prioritas          string
+	StatusManual       *string
+	Anggaran           pgtype.Numeric
+	DibuatOleh         uuid.UUID
+	DibuatPada         time.Time
+	DiubahPada         time.Time
+	DiarsipkanPada     *time.Time
+	StatusManualAlasan *string
+	StatusManualOleh   *uuid.UUID
+	StatusManualPada   *time.Time
 }
 
 type ProjectMember struct {

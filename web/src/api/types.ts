@@ -73,6 +73,93 @@ export interface Project {
   diubah_pada: string
   diarsipkan_pada: string | null
   peran_saya: ProjectRole | ''
+  portfolio_id: string | null
+  /** Hanya pada GET /projects/{id}. */
+  portfolio_nama?: string | null
+}
+
+export interface Portfolio {
+  id: string
+  nama: string
+  jumlah_proyek: number
+  dibuat_pada: string
+  diubah_pada: string
+}
+
+export type Health = 'hijau' | 'kuning' | 'merah'
+
+export const HEALTH_STYLE: Record<Health, { judul: string; warna: string }> = {
+  hijau: { judul: 'Hijau', warna: 'hijau' },
+  kuning: { judul: 'Kuning', warna: 'kuning' },
+  merah: { judul: 'Merah', warna: 'merah' },
+}
+
+export type RiskRule =
+  | 'lewat_tenggat'
+  | 'tenggat_dekat'
+  | 'tanpa_penanggung_jawab'
+  | 'predecessor_terlambat'
+  | 'melewati_tenggat_proyek'
+
+/** Urutan dan label aturan risiko (SPEC bagian 5). */
+export const RISK_RULES: { kode: RiskRule; label: string }[] = [
+  { kode: 'lewat_tenggat', label: 'Lewat tenggat' },
+  { kode: 'tenggat_dekat', label: 'Tenggat dekat, progres rendah' },
+  { kode: 'tanpa_penanggung_jawab', label: 'Tanpa penanggung jawab' },
+  { kode: 'predecessor_terlambat', label: 'Predecessor terlambat (jalur kritis)' },
+  { kode: 'melewati_tenggat_proyek', label: 'Slack ≤ 0 terhadap tenggat proyek' },
+]
+
+export interface ManualStatus {
+  status: Health
+  alasan: string
+  oleh_nama: string
+  pada: string
+}
+
+export interface ProjectHealth {
+  id: string
+  nama: string
+  pemilik_id: string
+  pemilik_nama: string
+  prioritas: Priority
+  mulai: string | null
+  selesai: string | null
+  portfolio_id: string | null
+  portfolio_nama: string | null
+  progres: number | null
+  progres_rencana: number | null
+  progres_jadwal: number | null
+  jumlah_item: number
+  item_berisiko: number
+  per_aturan: Record<RiskRule, number>
+  kritis_terlambat: number
+  health: Health
+  health_otomatis: Health
+  health_alasan: string[]
+  status_manual: ManualStatus | null
+  peringatan: string[]
+}
+
+export interface PortfolioDashboard {
+  items: ProjectHealth[]
+  ambang: {
+    tenggat_dekat_hari: number
+    tenggat_dekat_progres: number
+    kuning_persen: number
+    merah_persen: number
+    tertinggal_poin: number
+  }
+  hari_ini: string
+}
+
+export interface RiskItem {
+  item_id: string
+  board_id: string
+  board_nama: string
+  judul: string
+  kritis: boolean
+  alasan: { kode: RiskRule; pesan: string }[]
 }
 
 export interface Member {

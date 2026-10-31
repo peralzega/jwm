@@ -167,6 +167,10 @@
   /* Panel dependensi: lebar panel dan isian lag. */
   --dep-panel-w: 22rem;
   --dep-lag-w: 5rem;
+
+  /* Dasbor portofolio: bilah progres dan indentasi daftar alasan (rem ikut font kepadatan). */
+  --progress-bar-w: 6rem;
+  --list-indent: 1rem;
 }
 
 :root[data-density="normal"] {

@@ -84,9 +84,10 @@ users(id, nama, email, password_hash, peran, aktif, wajib_ganti_sandi,
       gagal_login, terkunci_hingga, login_terakhir, dibuat_pada)
 sessions(id, user_id, token_hash, kedaluwarsa, ip, user_agent, dibuat_pada)
 password_resets(id, user_id, token_hash, kedaluwarsa, dipakai_pada)
-portfolios(id, nama)
+portfolios(id, nama, dibuat_oleh, dibuat_pada, diubah_pada)   -- nama unik
 projects(id, portfolio_id, nama, pemilik_id, mulai, selesai,
-         prioritas, status_manual, anggaran)
+         prioritas, status_manual, status_manual_alasan, status_manual_oleh,
+         status_manual_pada, anggaran)          -- status_manual: hijau | kuning | merah
 project_members(project_id, user_id, peran_proyek, ditambahkan_pada,
                 ditambahkan_oleh)                 -- PK (project_id, user_id)
                                                   -- peran_proyek: manager | member | viewer
@@ -241,6 +242,52 @@ Penerimaan:
 - Health status otomatis (Hijau, Kuning, Merah) dari aturan di bagian 5.
 - PMO dapat menimpa dengan `status_manual` disertai alasan.
 - Filter menurut prioritas, pemilik, dan status.
+
+Keputusan implementasi M5:
+- **Siapa melihat apa:** sama dengan daftar proyek. Admin dan PMO melihat semua
+  proyek aktif; pengguna lain hanya proyek tempat ia menjadi anggota. Proyek
+  arsip tidak ditampilkan. Halaman `/portofolio`; API `GET /portfolio` dan
+  `GET /portfolio/projects/{id}/risks` (rincian item berisiko).
+- **Sumber data per board:** kolom pertama tiap tipe (urutan tampilan):
+  - status: Done bila label `done`;
+  - progress: bila kosong, item Done 100% dan lainnya 0%;
+  - person: penanggung jawab;
+  - timeline utama: durasi, tenggat, dan CPM (M4).
+- **Progres proyek:** rata-rata tertimbang progres item semua board; bobot =
+  durasi hari kerja timeline utama (minimal 1). Item tanpa timeline berbobot 1.
+- **Progres rencana:** porsi hari kerja timeline item yang sudah lewat sampai
+  hari ini, ditimbang sama, hanya untuk item berjadwal. "Tertinggal dari
+  rencana" bila progres aktual item yang sama lebih rendah lebih dari ambang
+  (bawaan 10 poin).
+- **Aturan risiko (bagian 5):** item Done tidak pernah berisiko.
+  1. Tenggat (selesai timeline utama) sebelum hari ini.
+  2. Sisa hari kerja setelah hari ini sampai tenggat ≤ 3 dan progres < 50%.
+  3. Board punya kolom person dan kolom person pertama item kosong.
+  4. Item kritis (CPM) dan predecessor langsungnya lewat tenggat, atau item
+     dijadwalkan mulai sebelum predecessor selesai (`melanggar_fs`).
+  5. Item kritis dan slack terhadap tanggal selesai proyek (`projects.selesai`)
+     ≤ 0 hari kerja: perkiraan selesai (EF) tepat pada atau melewati tenggat
+     proyek. Dilewati bila proyek tanpa tanggal selesai. Tafsiran ini dipilih
+     karena dengan CPM M4 setiap item kritis selalu ber-slack 0.
+  Setiap alasan memuat tanggal dan angka yang dapat ditelusuri.
+- **Health:** Merah bila ada item kritis yang lewat tenggat (aturan 1) atau
+  item berisiko > 25% dari semua item; Kuning bila 10–25% atau tertinggal dari
+  rencana; selain itu Hijau. Proyek tanpa item Hijau.
+- **Ambang** lewat env: `RISK_DUE_DAYS` (3), `RISK_DUE_PROGRESS` (50),
+  `HEALTH_YELLOW_PCT` (10), `HEALTH_RED_PCT` (25), `HEALTH_BEHIND_POINTS` (10).
+  **[ASUMSI]** Belum ada UI pengaturan pada v1.
+- **Hari ini** = tanggal lokal server. **[ASUMSI]** Server berjalan di WIB.
+- **Timpa status:** Admin dan PMO, status `hijau`/`kuning`/`merah` dengan
+  alasan wajib (≤ 500 karakter); dapat dikembalikan ke otomatis. Dasbor
+  menampilkan status efektif, status otomatis, siapa, dan alasannya. Tercatat
+  di audit (`timpa_status`, `hapus_timpa_status`). Proyek arsip ditolak.
+- **Portofolio:** tabel `portfolios` (nama unik tanpa membedakan huruf besar
+  kecil). Admin dan PMO membuat, mengganti nama, dan menghapus; menghapus
+  melepas proyeknya. Project Manager (manager efektif proyek) memilih
+  portofolio proyeknya lewat pengaturan proyek. Filter dasbor juga menurut
+  portofolio (termasuk "tanpa portofolio").
+- **Perhitungan** dilakukan saat diminta, tidak disimpan: beberapa query untuk
+  semua proyek terlihat, lalu CPM per board.
 
 ### M6. Dashboard dan Laporan (Fase 3)
 Penerimaan:

@@ -22,6 +22,9 @@ export function Layout() {
           <NavLink to="/" end className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
             Proyek
           </NavLink>
+          <NavLink to="/portofolio" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
+            Portofolio
+          </NavLink>
           {user?.peran === 'admin' && (
             <>
               <NavLink to="/admin/pengguna" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
