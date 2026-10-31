@@ -8,6 +8,8 @@ import { dependenciesKey, scheduleKey } from './deps/queries'
 export const itemsKey = (boardId: string) => ['items', boardId] as const
 
 const PAGE_SIZE = 1000
+// Worker otomasi memeriksa antrean tiap detik.
+const AUTOMATION_FOLLOW_UP_MS = 1500
 
 /** Memuat semua item board per halaman 1.000; onProgress menerima jumlah yang sudah dimuat. */
 export async function fetchAllItems(boardId: string, onProgress?: (loaded: number) => void): Promise<Item[]> {
@@ -61,9 +63,22 @@ export function useItemMutations(
   boardId: string,
   onError: (message: string | null) => void,
   onShifted?: (items: ShiftedItem[]) => void,
+  /** Board punya aturan otomasi aktif: item dimuat ulang setelah worker sempat berjalan. */
+  automation = false,
 ) {
   const qc = useQueryClient()
   const key = itemsKey(boardId)
+
+  // Aturan otomasi berjalan di server beberapa saat setelah perubahan tersimpan;
+  // ambil ulang item itu agar hasilnya (pindah grup, nilai baru) tampil.
+  function followUp(id: string) {
+    if (!automation) return
+    window.setTimeout(() => {
+      api<Item>('GET', `/items/${id}`)
+        .then((it) => replaceItem(qc, boardId, id, () => it))
+        .catch(() => undefined)
+    }, AUTOMATION_FOLLOW_UP_MS)
+  }
 
   async function snapshot(id: string): Promise<Snapshot> {
     await qc.cancelQueries({ queryKey: key })
@@ -109,6 +124,7 @@ export function useItemMutations(
         }))
       }
       if (shifted?.length) onShifted?.(shifted)
+      followUp(v.itemId)
       void qc.invalidateQueries({ queryKey: scheduleKey(boardId) })
     },
   })
@@ -159,6 +175,7 @@ export function useItemMutations(
     onSuccess: (saved) => {
       onError(null)
       qc.setQueryData<Item[]>(key, (old) => (old ? [...old, saved] : [saved]))
+      followUp(saved.id)
     },
     onError: (err) => onError(errorMessage(err)),
   })

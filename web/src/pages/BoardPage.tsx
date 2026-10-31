@@ -3,12 +3,14 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
 import { api, errorMessage } from '../api/client'
-import type { BoardDetail, Group, Item, Member, ShiftedItem } from '../api/types'
+import type { AutomationRule, BoardDetail, Group, Item, Member, ShiftedItem } from '../api/types'
 import { BoardTable } from '../board/BoardTable'
+import { automationsKey } from '../board/automation/keys'
 import { DependencyProvider } from '../board/deps/DependencyContext'
 import { ShiftNotice } from '../board/deps/ShiftNotice'
 import { parseScale, SCALES } from '../board/gantt/scale'
 import { statusColumns } from '../board/kanban/columns'
+import { LazyAutomation } from '../board/LazyAutomation'
 import { LazyGantt } from '../board/LazyGantt'
 import { LazyKanban } from '../board/LazyKanban'
 import { isBoardView, parseView, ViewTabsList } from '../board/ViewTabs'
@@ -65,7 +67,14 @@ export function BoardPage() {
     retry: false,
   })
   const items = useBoardItems(boardId, board.isSuccess)
-  const mutations = useItemMutations(boardId, setError, setShifted)
+  // Daftar aturan kecil (maks. 50); dipakai untuk memuat ulang item setelah otomasi.
+  const automations = useQuery({
+    queryKey: automationsKey(boardId),
+    queryFn: () => api<{ items: AutomationRule[] }>('GET', `/boards/${boardId}/automations`),
+    enabled: board.isSuccess,
+  })
+  const hasActiveRules = automations.data?.items.some((r) => r.aktif) ?? false
+  const mutations = useItemMutations(boardId, setError, setShifted, hasActiveRules)
   const projectId = board.data?.project_id
   const members = useQuery({
     queryKey: ['members', projectId],
@@ -216,6 +225,9 @@ export function BoardPage() {
             onError={setError}
           />
         )}
+      </TabsContent>
+      <TabsContent value="otomasi">
+        <LazyAutomation board={b} members={members.data?.items ?? NO_MEMBERS} />
       </TabsContent>
       </DependencyProvider>
       </Tabs>

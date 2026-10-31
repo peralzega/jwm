@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"jwm/internal/auth"
+	"jwm/internal/automation"
 	"jwm/internal/board"
 	"jwm/internal/config"
 	"jwm/internal/httpx"
@@ -37,6 +38,8 @@ type Deps struct {
 	Schedule *schedule.Service
 	// Report (dasbor portofolio) boleh nil pada tes paket lain.
 	Report *report.Service
+	// Automation boleh nil pada tes paket lain.
+	Automation *automation.Service
 	// Realtime (hub SSE) boleh nil; rute /stream hanya dipasang bila diisi.
 	Realtime *realtime.Hub
 	// StreamKeepAlive dan StreamMaxAge: nol berarti bawaan paket realtime (untuk tes).
@@ -117,6 +120,9 @@ func NewRouter(d Deps) http.Handler {
 			}
 			if d.Report != nil {
 				report.NewHandler(d.Report, d.Log).Routes(r)
+			}
+			if d.Automation != nil {
+				automation.NewHandler(d.Automation, d.Log).Routes(r)
 			}
 			if d.Realtime != nil {
 				r.Method(http.MethodGet, "/stream", &realtime.Handler{

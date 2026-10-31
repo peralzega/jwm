@@ -218,6 +218,13 @@ func ItemForEdit(ctx context.Context, q *dbgen.Queries, actor auth.Principal, id
 	return it, err
 }
 
+// BoardForManage memastikan board aktif, pelaku manager efektif proyeknya, dan
+// proyek tidak diarsipkan. Mengembalikan project_id. Dipakai paket automation.
+func BoardForManage(ctx context.Context, q *dbgen.Queries, actor auth.Principal, boardID uuid.UUID) (uuid.UUID, error) {
+	b, _, err := boardAccess(ctx, q, actor, boardID, RoleManager, true)
+	return b.ProjectID, err
+}
+
 // BoardForRead memastikan board aktif dan pelaku berhak membacanya.
 func BoardForRead(ctx context.Context, q *dbgen.Queries, actor auth.Principal, boardID uuid.UUID) error {
 	_, _, err := boardAccess(ctx, q, actor, boardID, RoleViewer, false)

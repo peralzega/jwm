@@ -361,3 +361,52 @@ export interface Budget {
   total: { anggaran: string; realisasi: string; sisa: string }
   bisa_ubah: boolean
 }
+
+export type TriggerKind = 'item_dibuat' | 'status_berubah' | 'penugasan_berubah' | 'tanggal_tiba'
+export type ConditionKind = 'kolom_sama' | 'person_termasuk' | 'di_grup'
+export type ActionKind = 'pindah_grup' | 'ubah_kolom'
+
+export interface AutomationTrigger {
+  jenis: TriggerKind
+  column_id?: string
+  /** Id label status; '' berarti kosong. */
+  dari?: string
+  ke?: string
+}
+
+export interface AutomationCondition {
+  jenis: ConditionKind
+  column_id?: string
+  nilai?: unknown
+  user_id?: string
+  group_id?: string
+}
+
+export interface AutomationAction {
+  jenis: ActionKind
+  group_id?: string
+  column_id?: string
+  nilai?: unknown
+}
+
+export interface AutomationRule {
+  id: string
+  board_id: string
+  nama: string
+  pemicu: AutomationTrigger
+  kondisi: AutomationCondition[]
+  aksi: AutomationAction[]
+  aktif: boolean
+  dibuat_oleh_nama?: string
+  dibuat_pada: string
+  diubah_pada: string
+}
+
+export interface AutomationRun {
+  id: number
+  item_id: string | null
+  item_judul: string | null
+  hasil: 'berhasil' | 'dilewati' | 'gagal' | 'diblokir_loop'
+  pesan: string
+  waktu: string
+}

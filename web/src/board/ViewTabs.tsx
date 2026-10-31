@@ -1,15 +1,16 @@
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-export type BoardView = 'tabel' | 'kanban' | 'gantt'
+export type BoardView = 'tabel' | 'kanban' | 'gantt' | 'otomasi'
 
 const VIEWS: { id: BoardView; label: string }[] = [
   { id: 'tabel', label: 'Tabel' },
   { id: 'kanban', label: 'Kanban' },
   { id: 'gantt', label: 'Gantt' },
+  { id: 'otomasi', label: 'Otomasi' },
 ]
 
 export function parseView(v: string | null): BoardView {
-  return v === 'kanban' || v === 'gantt' ? v : 'tabel'
+  return v === 'kanban' || v === 'gantt' || v === 'otomasi' ? v : 'tabel'
 }
 
 export function isBoardView(v: string): v is BoardView {

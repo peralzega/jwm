@@ -355,6 +355,49 @@ Penerimaan:
 - Pencegahan loop: satu aturan tidak memicu dirinya sendiri lebih dari N kali.
 - Webhook memakai tanda tangan HMAC untuk integrasi n8n.
 
+Keputusan implementasi M7 (dikerjakan bertahap: M7a mesin aturan dan aksi
+item; M7b kirim email dan panggil webhook):
+- **Aturan per board** (`automation_rules`), maksimal 50 per board, 10 kondisi,
+  dan 10 aksi. Dikelola manager efektif proyek (Project Manager, PMO, Admin);
+  anggota lain hanya melihat aturan dan riwayatnya. Proyek arsip hanya-baca.
+  Perubahan aturan diaudit (`automation_rule`).
+  API: `GET`/`POST /boards/{id}/automations`, `PATCH`/`DELETE /automations/{id}`,
+  `GET /automations/{id}/runs` (100 terbaru).
+- **Pemicu:** item dibuat; status berubah (opsional kolom, dari label, ke
+  label; `""` = kosong); penugasan berubah (opsional kolom); tanggal tiba
+  (kolom date, atau tanggal selesai timeline, sama dengan hari ini — tanggal
+  lokal server; diperiksa saat start dan tiap 15 menit, sekali per aturan,
+  item, dan tanggal).
+- **Kondisi** (semua harus terpenuhi): nilai kolom sama dengan (status,
+  prioritas, teks, angka, progres, tanggal; kosong boleh), penanggung jawab
+  termasuk pengguna, item berada di grup.
+- **Aksi (M7a):** pindahkan ke grup (ke akhir grup); ubah nilai kolom (status,
+  prioritas, person, teks, angka, progres, tanggal). Timeline tidak dapat
+  diubah otomasi karena perubahan timeline menggeser successor (M4) atas nama
+  pengguna. Nilai divalidasi saat aturan disimpan dan dinormalkan ulang saat
+  dijalankan (label atau keanggotaan bisa berubah).
+- **Eksekusi asinkron:** trigger database mengisi `automation_events` hanya bila
+  board punya aturan aktif; worker memproses antrean tiap detik
+  (`FOR UPDATE SKIP LOCKED`). Aksi satu aturan berjalan dalam savepoint: satu
+  aksi gagal membatalkan seluruh aksi aturan itu tanpa memengaruhi aturan lain.
+  Item yang sudah dihapus atau proyek arsip: dilewati.
+- **Atas nama sistem:** audit perubahan oleh aturan mencatat `aktor_id = null`
+  dan `sesudah.otomasi` (id aturan, nama, pembuat).
+- **Riwayat** `automation_runs`: `berhasil`, `dilewati` (dengan alasan, mis.
+  kondisi tidak terpenuhi), `gagal` (pesan galat), `diblokir_loop`.
+- **Pencegahan loop:** kejadian membawa rantai aturan penyebabnya (setelan
+  transaksi `jwm.rantai` dibaca trigger). Satu aturan paling banyak berjalan 3
+  kali per item dalam satu rantai, dan rantai paling panjang 5 langkah
+  (`AUTOMATION_MAX_PER_RULE`, `AUTOMATION_MAX_DEPTH`). **[ASUMSI]** angka bawaan.
+- **UI:** tab "Otomasi" di board: daftar aturan sebagai kalimat, formulir
+  pemicu → kondisi → aksi, aktif/nonaktif, dan riwayat eksekusi. Pada board
+  dengan aturan aktif, item yang baru diubah atau dibuat dimuat ulang sekitar
+  1,5 detik kemudian agar hasil otomasi tampil.
+- **M7b (menyusul):** kirim email (hanya ke pengguna terdaftar yang aktif,
+  template tetap, antrean dengan percobaan ulang) dan webhook (HTTPS ke host di
+  `WEBHOOK_ALLOWED_HOSTS`, tanda tangan HMAC-SHA256, rahasia per aturan, batas
+  waktu 10 detik, 3 percobaan ulang).
+
 ### M8. Status Reporter dan Risk Analyzer (Fase 4)
 Penerimaan:
 - Laporan status terjadwal (mingguan, harian) per proyek.
