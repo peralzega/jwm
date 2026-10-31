@@ -300,6 +300,93 @@ paths:
         "204": { description: Dihapus }
         "403": { description: Bukan Admin atau PMO }
         "404": { description: not_found }
+  /boards/{id}/automations:
+    parameters:
+      - { $ref: "#/components/parameters/BoardID" }
+    get:
+      summary: Aturan otomasi board (hak baca board)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AutomationRule" } }
+                  bisa_kelola: { type: boolean, description: Pelaku manager efektif pada proyek aktif }
+        "404": { description: not_found }
+    post:
+      summary: Buat aturan otomasi (manager efektif proyek)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutomationRuleInput" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationRule" }
+        "403": { description: Bukan manager efektif }
+        "404": { description: not_found }
+        "409": { description: "too_many_rules (maks. 50 per board), project_archived" }
+        "422": { description: validation }
+  /automations/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Ganti isi aturan (nama, aktif, pemicu, kondisi, aksi)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutomationRuleInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutomationRule" }
+        "403": { description: Bukan manager efektif }
+        "404": { description: not_found }
+        "409": { description: project_archived }
+        "422": { description: validation }
+    delete:
+      summary: Hapus aturan beserta riwayatnya
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "403": { description: Bukan manager efektif }
+        "404": { description: not_found }
+  /automations/{id}/runs:
+    get:
+      summary: 100 eksekusi terbaru aturan (hak baca board)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        item_id: { type: [string, "null"], format: uuid }
+                        item_judul: { type: [string, "null"] }
+                        hasil: { type: string, enum: [berhasil, dilewati, gagal, diblokir_loop] }
+                        pesan: { type: string }
+                        waktu: { type: string, format: date-time }
+        "404": { description: not_found }
   /dashboard:
     get:
       summary: Panel dasbor (sebaran status, beban kerja, tren penyelesaian, keuangan)
@@ -1338,6 +1425,51 @@ components:
               realisasi: { type: string }
               sisa: { type: string, description: Boleh negatif }
               jumlah_entri: { type: integer }
+    AutomationTrigger:
+      type: object
+      required: [jenis]
+      properties:
+        jenis: { type: string, enum: [item_dibuat, status_berubah, penugasan_berubah, tanggal_tiba] }
+        column_id: { type: string, format: uuid, description: "status/person (opsional); date/timeline (wajib untuk tanggal_tiba)" }
+        dari: { type: string, description: 'Id label status; "" = kosong (status_berubah)' }
+        ke: { type: string, description: 'Id label status; "" = kosong (status_berubah)' }
+    AutomationCondition:
+      type: object
+      required: [jenis]
+      properties:
+        jenis: { type: string, enum: [kolom_sama, person_termasuk, di_grup] }
+        column_id: { type: string, format: uuid }
+        nilai: { description: "Nilai kolom (kolom_sama); null = kosong" }
+        user_id: { type: string, format: uuid }
+        group_id: { type: string, format: uuid }
+    AutomationAction:
+      type: object
+      required: [jenis]
+      properties:
+        jenis: { type: string, enum: [pindah_grup, ubah_kolom] }
+        group_id: { type: string, format: uuid }
+        column_id: { type: string, format: uuid, description: "status, priority, person, text, number, progress, date" }
+        nilai: { description: "Nilai kolom; null = kosongkan" }
+    AutomationRuleInput:
+      type: object
+      additionalProperties: false
+      required: [nama, pemicu, aksi]
+      properties:
+        nama: { type: string, maxLength: 200 }
+        pemicu: { $ref: "#/components/schemas/AutomationTrigger" }
+        kondisi: { type: array, maxItems: 10, items: { $ref: "#/components/schemas/AutomationCondition" } }
+        aksi: { type: array, minItems: 1, maxItems: 10, items: { $ref: "#/components/schemas/AutomationAction" } }
+        aktif: { type: boolean }
+    AutomationRule:
+      allOf:
+        - { $ref: "#/components/schemas/AutomationRuleInput" }
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            board_id: { type: string, format: uuid }
+            dibuat_oleh_nama: { type: string }
+            dibuat_pada: { type: string, format: date-time }
+            diubah_pada: { type: string, format: date-time }
     BudgetInput:
       type: object
       additionalProperties: false

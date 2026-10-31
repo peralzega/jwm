@@ -39,6 +39,10 @@ type Config struct {
 	HealthYellowPct    int
 	HealthRedPct       int
 	HealthBehindPoints int
+
+	// Batas pencegahan loop otomasi (SPEC M7).
+	AutomationMaxPerRule int
+	AutomationMaxDepth   int
 }
 
 // IsProduction bernilai true bila APP_ENV=production.
@@ -106,6 +110,9 @@ func Load(getenv func(string) string) (Config, error) {
 		HealthYellowPct:    posInt("HEALTH_YELLOW_PCT", "10"),
 		HealthRedPct:       posInt("HEALTH_RED_PCT", "25"),
 		HealthBehindPoints: posInt("HEALTH_BEHIND_POINTS", "10"),
+		// ASSUMPTION: satu aturan maksimal 3 kali per item dalam satu rantai, kedalaman 5.
+		AutomationMaxPerRule: posInt("AUTOMATION_MAX_PER_RULE", "3"),
+		AutomationMaxDepth:   posInt("AUTOMATION_MAX_DEPTH", "5"),
 	}
 
 	secure, err := strconv.ParseBool(get("SESSION_COOKIE_SECURE", "true"))

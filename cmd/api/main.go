@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"jwm/internal/auth"
+	"jwm/internal/automation"
 	"jwm/internal/board"
 	"jwm/internal/config"
 	"jwm/internal/db"
@@ -62,6 +63,9 @@ func run(log *slog.Logger) error {
 	// ASSUMPTION: 5 koneksi pembaruan langsung per pengguna cukup (beberapa tab).
 	hub := realtime.NewHub(5)
 	go realtime.Listen(ctx, pool, hub, log)
+	go automation.NewWorker(pool, log, automation.Limits{
+		MaxPerRule: cfg.AutomationMaxPerRule, MaxDepth: cfg.AutomationMaxDepth,
+	}).Run(ctx)
 
 	// srv dibuat di bawah; stream SSE ditutup saat shutdown.
 	srv := &http.Server{
@@ -74,8 +78,9 @@ func run(log *slog.Logger) error {
 				DueDays: cfg.RiskDueDays, DueProgress: cfg.RiskDueProgress, YellowPct: cfg.HealthYellowPct,
 				RedPct: cfg.HealthRedPct, BehindPoints: cfg.HealthBehindPoints,
 			}),
-			Realtime: hub,
-			Log:      log,
+			Realtime:   hub,
+			Automation: automation.NewService(pool),
+			Log:        log,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,

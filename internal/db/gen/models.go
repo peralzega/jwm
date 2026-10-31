@@ -24,6 +24,49 @@ type AuditLog struct {
 	Waktu     time.Time
 }
 
+type AutomationDateFired struct {
+	RuleID  uuid.UUID
+	ItemID  uuid.UUID
+	Tanggal pgtype.Date
+}
+
+type AutomationEvent struct {
+	ID           int64
+	BoardID      uuid.UUID
+	ItemID       uuid.UUID
+	Jenis        string
+	ColumnID     *uuid.UUID
+	RuleID       *uuid.UUID
+	Sebelum      []byte
+	Sesudah      []byte
+	Rantai       []byte
+	DibuatPada   time.Time
+	DiprosesPada *time.Time
+}
+
+type AutomationRule struct {
+	ID          uuid.UUID
+	BoardID     uuid.UUID
+	Nama        string
+	PemicuJson  []byte
+	KondisiJson []byte
+	AksiJson    []byte
+	Aktif       bool
+	DibuatOleh  uuid.UUID
+	DibuatPada  time.Time
+	DiubahPada  time.Time
+}
+
+type AutomationRun struct {
+	ID      int64
+	RuleID  uuid.UUID
+	ItemID  *uuid.UUID
+	EventID *int64
+	Hasil   string
+	Pesan   string
+	Waktu   time.Time
+}
+
 type Board struct {
 	ID          uuid.UUID
 	ProjectID   uuid.UUID
