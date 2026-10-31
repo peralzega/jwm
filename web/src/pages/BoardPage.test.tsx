@@ -294,6 +294,62 @@ describe('tabel board', () => {
     await waitFor(async () => expect(within(await cellOf('Alpha', COL.status)).getByText('Done')).toBeInTheDocument())
   })
 
+  it('Popover sel: Esc menutup dan fokus kembali ke sel asal, lalu panah tetap berpindah sel', async () => {
+    const { writes } = setup([makeItem({ id: 'a', judul: 'Alpha' })])
+    const u = userEvent.setup()
+
+    // Daftar pilihan (status): dibuka dengan Enter dari keyboard.
+    await u.click(await cellOf('Alpha', COL.title))
+    await u.keyboard('{ArrowRight}{Enter}')
+    expect(await screen.findByRole('listbox', { name: 'Status item Alpha' })).toBeInTheDocument()
+    await u.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+    await waitFor(async () => expect(document.activeElement).toBe(await cellOf('Alpha', COL.status)))
+    await u.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(await cellOf('Alpha', COL.person))
+
+    // Panel person: Esc menutup dari dalam panel, fokus kembali ke sel person.
+    await u.keyboard('{Enter}')
+    const dialog = await screen.findByRole('dialog', { name: 'Penanggung jawab item Alpha' })
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement))
+    await u.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(async () => expect(document.activeElement).toBe(await cellOf('Alpha', COL.person)))
+    await u.keyboard('{ArrowLeft}')
+    expect(document.activeElement).toBe(await cellOf('Alpha', COL.status))
+    expect(writes()).toEqual([])
+  })
+
+  it('Popover sel: Tab tidak lepas dari tabel', async () => {
+    setup([makeItem({ id: 'a', judul: 'Alpha' })])
+    const u = userEvent.setup()
+    const grid = await screen.findByRole('grid')
+
+    // Panel person: Tab berputar di antara isian panel (2 anggota, Batal, Simpan).
+    await u.click(await cellOf('Alpha', COL.person))
+    const dialog = await screen.findByRole('dialog', { name: 'Penanggung jawab item Alpha' })
+    const first = within(dialog).getByRole('checkbox', { name: 'Budi' })
+    await waitFor(() => expect(document.activeElement).toBe(first))
+    await u.tab()
+    await u.tab()
+    await u.tab()
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Simpan' }))
+    await u.tab()
+    expect(document.activeElement).toBe(first)
+    await u.tab({ shift: true })
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Simpan' }))
+    await u.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    // Daftar pilihan: Tab menutup daftar dan fokus kembali ke sel, tetap di dalam tabel.
+    await u.click(await cellOf('Alpha', COL.priority))
+    await screen.findByRole('listbox', { name: 'Prioritas item Alpha' })
+    await u.tab()
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+    await waitFor(async () => expect(document.activeElement).toBe(await cellOf('Alpha', COL.priority)))
+    expect(grid).toContainElement(document.activeElement as HTMLElement)
+  })
+
   it('navigasi keyboard: panah, Home/End, dan melewati header grup', async () => {
     setup([makeItem({ id: 'a', judul: 'Alpha', urutan: 1 }), makeItem({ id: 'b', judul: 'Beta', urutan: 2 })])
     const u = userEvent.setup()

@@ -186,8 +186,8 @@ describe('Kanban', () => {
     expect(alpha).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('kanban-live')).toHaveTextContent('Kartu Alpha diangkat dari kolom Ready to start.')
     await u.keyboard('[ArrowRight][ArrowRight][ArrowRight]')
-    expect(await column('Done')).toHaveClass('ring-accent')
-    expect(await column('In progress')).not.toHaveClass('ring-accent')
+    expect(await column('Done')).toHaveClass('ring-primary')
+    expect(await column('In progress')).not.toHaveClass('ring-primary')
     expect(screen.getByTestId('kanban-live')).toHaveTextContent('berada di atas kolom Done')
     await u.keyboard('{Enter}')
     await waitFor(() => expect(puts()[0]).toMatchObject({ body: { nilai: 'done' } }))
@@ -243,7 +243,8 @@ describe('Kanban', () => {
     expect(router.state.location.search).not.toContain('tampilan=')
     expect(await screen.findByRole('grid')).toBeInTheDocument()
     await u.keyboard('{ArrowRight}')
-    expect(screen.getByRole('tab', { name: 'Kanban' })).toHaveAttribute('aria-selected', 'true')
+    // Radix Tabs memindah fokus (dan mengaktifkan tab) secara asinkron.
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Kanban' })).toHaveAttribute('aria-selected', 'true'))
     expect(router.state.location.search).toContain('tampilan=kanban')
   })
 

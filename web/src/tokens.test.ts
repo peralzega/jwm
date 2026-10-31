@@ -18,7 +18,8 @@ const PROPS = [
   'ring', 'border', 'border-t', 'border-r', 'border-b', 'border-l', 'border-x', 'border-y',
   'outline', 'outline-offset', 'rounded-[a-z]+',
 ].join('|')
-const VALUE = String.raw`(?:(?!0\b)\d[\d.]*|px\b|(?:xs|sm|md|lg|xl|[2-9]xl)\b|\[(?!calc\(var|var\())`
+// Pecahan (top-1/2, w-1/3) bersifat relatif terhadap induk, bukan angka mentah.
+const VALUE = String.raw`(?:(?!0\b)(?!\d+\/\d+)\d[\d.]*|px\b|(?:xs|sm|md|lg|xl|[2-9]xl)\b|\[(?!calc\(var|var\())`
 export const FIXED = new RegExp(String.raw`(?<![\w-])-?(?:${PROPS})-${VALUE}`, 'g')
 
 /** Teks kelas dari className="...", className={`...`}, dan konstanta kelas (const X = '...'). */
@@ -36,8 +37,8 @@ describe('pola penjaga', () => {
   it('membolehkan token, nol, dan var()', () => {
     const ok =
       'gap-(--space-sm) top-0 left-0 px-d row-h min-w-0 flex-1 ring-(length:--focus-ring-w) -mb-(--line-w) ' +
-      'w-[calc(var(--kanban-col-w)_-_2*var(--density-pad-x))] text-(length:--font-heading) border border-line ' +
-      'rounded rounded-full text-muted text-right text-white outline-none max-w-(--auth-card-w)'
+      'w-[calc(var(--kanban-col-w)_-_2*var(--density-pad-x))] text-(length:--heading-size) border border-line ' +
+      'rounded rounded-full text-muted-foreground text-right text-white outline-none max-w-(--auth-card-w) top-1/2 -translate-y-1/2'
     expect(ok.match(FIXED)).toBeNull()
   })
 })

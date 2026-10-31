@@ -65,7 +65,7 @@ export function ProjectsPage() {
 
   return (
     <div className="gap-d flex flex-col">
-      <h1 className="text-(length:--font-heading) font-semibold">Proyek</h1>
+      <h1 className="text-(length:--heading-size) font-semibold">Proyek</h1>
       {canCreate && (
         <Panel title="Proyek baru">
           <CreateProjectForm />
@@ -77,11 +77,11 @@ export function ProjectsPage() {
       >
         {projects.isPending && <Loading />}
         {projects.isError && <Alert>{errorMessage(projects.error)}</Alert>}
-        {projects.data?.items.length === 0 && <p className="text-muted">Belum ada proyek.</p>}
+        {projects.data?.items.length === 0 && <p className="text-muted-foreground">Belum ada proyek.</p>}
         {projects.data && projects.data.items.length > 0 && (
           <table className="w-full text-left">
             <thead>
-              <tr className="row-h border-b border-line text-muted">
+              <tr className="row-h border-b border-line text-muted-foreground">
                 <th className="px-d font-medium">Nama</th>
                 <th className="px-d font-medium">Pemilik</th>
                 <th className="px-d font-medium">Prioritas</th>
@@ -93,7 +93,7 @@ export function ProjectsPage() {
               {projects.data.items.map((p) => (
                 <tr key={p.id} className="row-h border-b border-line">
                   <td className="px-d">
-                    <Link to={`/proyek/${p.id}`} className="text-accent hover:underline">
+                    <Link to={`/proyek/${p.id}`} className="text-primary hover:underline">
                       {p.nama}
                     </Link>
                   </td>

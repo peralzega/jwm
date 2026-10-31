@@ -145,6 +145,17 @@ export interface Item {
   nilai: Record<string, unknown>
   bisa_ubah: boolean
   bisa_hapus: boolean
+  /** Penanda jalur kritis dari perhitungan CPM backend (M4); belum dikirim API pada M3. */
+  kritis?: boolean
+}
+
+export interface Dependency {
+  id: string
+  board_id: string
+  predecessor_id: string
+  successor_id: string
+  tipe: 'FS'
+  lag_hari: number
 }
 
 export interface Page<T> {

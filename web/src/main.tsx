@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 
+import { TooltipProvider } from './components/ui/tooltip'
 import './index.css'
 import { applyDensity } from './density'
 import { routes } from './routes'
@@ -20,7 +21,9 @@ if (!root) throw new Error('elemen #root tidak ditemukan')
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

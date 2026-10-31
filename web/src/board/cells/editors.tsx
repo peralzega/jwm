@@ -152,7 +152,7 @@ function InlineEditor({ col, item, label, initial, onCommit, onCancel, onInvalid
           onCancel()
         }
       }}
-      className={`board-cell px-d w-full border-(length:--focus-ring-w) bg-surface outline-none ${invalid ? 'border-danger' : 'border-accent'} ${
+      className={`board-cell px-d w-full border-(length:--focus-ring-w) bg-surface outline-none ${invalid ? 'border-danger' : 'border-primary'} ${
         numeric ? 'text-right tabular-nums' : ''
       }`}
     />
@@ -210,7 +210,7 @@ function PersonEditor({ col, item, anchor, label, members, onCommit, onCancel }:
       >
         <fieldset className="max-h-(--panel-max-h) overflow-auto">
           <legend className="sr-only">{label}</legend>
-          {candidates.length === 0 && <p className="px-d text-muted">Belum ada anggota proyek.</p>}
+          {candidates.length === 0 && <p className="px-d text-muted-foreground">Belum ada anggota proyek.</p>}
           {candidates.map((m, i) => (
             <label key={m.user_id} className="px-d row-h flex cursor-pointer items-center gap-d hover:bg-canvas">
               <input

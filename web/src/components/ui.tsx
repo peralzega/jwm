@@ -1,29 +1,22 @@
+// Komponen dasar aplikasi: lapisan tipis di atas shadcn/ui (src/components/ui)
+// dengan API lama, agar halaman tidak perlu diubah saat adopsi bertahap.
+
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { useId } from 'react'
 
+import { Alert as UiAlert } from './ui/alert'
+import { Button as UiButton } from './ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Input } from './ui/input'
+import { NativeSelect } from './ui/native-select'
+
 type Variant = 'primary' | 'secondary' | 'danger'
 
-const VARIANT: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-strong border-accent',
-  secondary: 'bg-surface text-ink hover:bg-canvas border-line',
-  danger: 'bg-surface text-danger hover:bg-danger-soft border-line',
-}
+const VARIANT = { primary: 'default', secondary: 'outline', danger: 'destructive' } as const
 
-export function Button({
-  variant = 'secondary',
-  className = '',
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
-  return (
-    <button
-      type="button"
-      className={`row-h px-d inline-flex items-center rounded border font-medium disabled:opacity-50 focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-offset-(--line-w) focus-visible:outline-accent ${VARIANT[variant]} ${className}`}
-      {...props}
-    />
-  )
+export function Button({ variant = 'secondary', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
+  return <UiButton variant={VARIANT[variant]} {...props} />
 }
-
-const FIELD = 'row-h px-d w-full rounded border border-line bg-surface focus-visible:outline-(length:--focus-ring-w) focus-visible:outline-accent'
 
 export function TextField({
   label,
@@ -36,9 +29,9 @@ export function TextField({
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
-      <input id={id} className={FIELD} aria-describedby={hint ? `${id}-hint` : undefined} {...props} />
+      <Input id={id} aria-describedby={hint ? `${id}-hint` : undefined} {...props} />
       {hint && (
-        <span id={`${id}-hint`} className="text-muted">
+        <span id={`${id}-hint`} className="text-muted-foreground">
           {hint}
         </span>
       )}
@@ -57,37 +50,36 @@ export function SelectField({
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
-      <select id={id} className={FIELD} {...props}>
+      <NativeSelect id={id} {...props}>
         {children}
-      </select>
+      </NativeSelect>
     </div>
   )
 }
 
 export function Alert({ kind = 'error', children }: { kind?: 'error' | 'ok'; children: ReactNode }) {
-  const cls = kind === 'error' ? 'bg-danger-soft text-danger border-danger/30' : 'bg-ok-soft text-ink border-line'
   return (
-    <div role={kind === 'error' ? 'alert' : 'status'} className={`px-d py-d rounded border ${cls}`}>
+    <UiAlert variant={kind === 'error' ? 'destructive' : 'default'} role={kind === 'error' ? 'alert' : 'status'}>
       {children}
-    </div>
+    </UiAlert>
   )
 }
 
 export function Panel({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded border border-line bg-surface" aria-label={title}>
-      <header className="px-d row-h flex items-center justify-between border-b border-line">
-        <h2 className="font-semibold">{title}</h2>
+    <Card aria-label={title}>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
         {actions}
-      </header>
-      <div className="px-d py-d">{children}</div>
-    </section>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }
 
 export function Loading() {
   return (
-    <p role="status" className="text-muted px-d py-d">
+    <p role="status" className="text-muted-foreground px-d py-d">
       Memuat…
     </p>
   )

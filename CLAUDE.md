@@ -22,8 +22,10 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
 - Realtime: Server-Sent Events (SSE). Pindah ke WebSocket hanya bila perlu.
 - Frontend: React + TypeScript + Vite, Tailwind, TanStack Table,
   TanStack Virtual, dnd-kit (drag-and-drop).
-- Gantt: frappe-gantt (MIT). Pustaka ini tidak menghitung jalur kritis;
-  hitung di backend dan kirim penandanya lewat API.
+- Gantt: komponen SVG dan React buatan sendiri (`web/src/board/gantt`), tanpa
+  pustaka Gantt pihak ketiga. Alasannya: frappe-gantt, SVAR, dan DHTMLX tidak lolos
+  syarat XSS, CSP, keyboard/ARIA, dan token (lihat `docs/SPEC.md` M3). Jalur kritis
+  dihitung di backend dan penandanya dikirim lewat API.
   Dilarang memakai pustaka berlisensi GPL atau komersial tanpa persetujuan.
   Verifikasi lisensi pada repositori resmi saat instalasi.
 - Pengujian: `go test`, testify, testcontainers-go; Vitest + Testing Library.
@@ -65,6 +67,19 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
   `-ml-px`, `text-[0.7rem]`) ditolak oleh `web/src/tokens.test.ts`. Token baru
   didefinisikan untuk `compact` dan, bila berbeda, `normal`.
 - Grid wajib memakai virtualisasi baris.
+- Komponen dasar memakai shadcn/ui (`web/src/components/ui`, `web/components.json`),
+  disesuaikan ke token: warna lewat variabel tema shadcn di `index.css` (nilai =
+  palet JWM), ukuran lewat token kepadatan. BoardTable dan Kanban tetap kustom.
+  Pasang komponen shadcn hanya saat modul yang memakainya dikerjakan.
+- Perintah shadcn selalu memakai versi terkunci: `npx shadcn@4.21.5 add <komponen>`,
+  bukan `shadcn@latest` atau tanpa versi. Setelah `add`, tinjau hasilnya: ganti
+  impor `radix-ui`/`cn`/`lucide-react` ke paket `@radix-ui/react-*` dan `@/lib/utils`,
+  ubah ukuran ke token, buang varian `dark:`, lalu kunci versi dependensi baru.
+- Popover dan komponen Radix lain selalu non-modal: mode modal memakai
+  react-remove-scroll yang menyisipkan `<style>` dan melanggar CSP `style-src 'self'`.
+- `npm run build` menulis `dist/THIRD-PARTY-NOTICES.txt` dan gagal bila ada
+  paket dalam bundel berlisensi di luar daftar yang diizinkan
+  (`web/build/third-party-notices.ts`).
 - Aksesibilitas dasar: fokus keyboard dan label ARIA pada kontrol interaktif.
 
 ## Keamanan

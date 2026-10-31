@@ -27,7 +27,7 @@ function TempPasswordNotice({ result, onClose }: { result: UserWithTempPassword;
         <code className="rounded bg-surface px-d font-mono select-all" aria-label="Sandi sementara">
           {result.sandi_sementara}
         </code>
-        <span className="text-muted">Sampaikan secara aman. Sandi ini tidak akan ditampilkan lagi.</span>
+        <span className="text-muted-foreground">Sampaikan secara aman. Sandi ini tidak akan ditampilkan lagi.</span>
         <Button onClick={onClose}>Tutup</Button>
       </div>
     </Alert>
@@ -177,7 +177,7 @@ export function UsersPage() {
 
   return (
     <div className="gap-d flex flex-col">
-      <h1 className="text-(length:--font-heading) font-semibold">Pengguna</h1>
+      <h1 className="text-(length:--heading-size) font-semibold">Pengguna</h1>
       {temp && <TempPasswordNotice result={temp} onClose={() => setTemp(null)} />}
       {rowError && <Alert>{rowError}</Alert>}
       <Panel title="Buat akun">
@@ -200,7 +200,7 @@ export function UsersPage() {
         {users.data && (
           <table className="w-full text-left">
             <thead>
-              <tr className="row-h border-b border-line text-muted">
+              <tr className="row-h border-b border-line text-muted-foreground">
                 <th className="px-d font-medium">Nama</th>
                 <th className="px-d font-medium">Email</th>
                 <th className="px-d font-medium">Peran</th>

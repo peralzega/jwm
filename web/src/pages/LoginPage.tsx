@@ -31,7 +31,7 @@ export function LoginPage() {
   return (
     <main className="mx-auto mt-(--auth-top) w-full max-w-(--auth-card-w)">
       <form onSubmit={submit} className="gap-d flex flex-col rounded border border-line bg-surface p-(--card-pad)" noValidate>
-        <h1 className="text-(length:--font-heading) font-semibold">Masuk ke JWM</h1>
+        <h1 className="text-(length:--heading-size) font-semibold">Masuk ke JWM</h1>
         {login.isError && <Alert>{errorMessage(login.error)}</Alert>}
         <TextField
           label="Email"
@@ -52,7 +52,7 @@ export function LoginPage() {
         <Button type="submit" variant="primary" disabled={login.isPending || !email || !password}>
           {login.isPending ? 'Memproses…' : 'Masuk'}
         </Button>
-        <p className="text-muted">Lupa kata sandi? Hubungi Admin untuk reset.</p>
+        <p className="text-muted-foreground">Lupa kata sandi? Hubungi Admin untuk reset.</p>
       </form>
     </main>
   )

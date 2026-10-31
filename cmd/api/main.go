@@ -16,6 +16,7 @@ import (
 	"jwm/internal/config"
 	"jwm/internal/db"
 	"jwm/internal/project"
+	"jwm/internal/schedule"
 	"jwm/internal/server"
 	"jwm/internal/user"
 )
@@ -60,7 +61,8 @@ func run(log *slog.Logger) error {
 		Addr: cfg.HTTPAddr,
 		Handler: server.NewRouter(server.Deps{
 			Config: cfg, Pool: pool, Auth: authSvc, User: user.NewService(pool, hasher),
-			Project: project.NewService(pool), Board: board.NewService(pool), Log: log,
+			Project: project.NewService(pool), Board: board.NewService(pool),
+			Schedule: schedule.NewService(pool), Log: log,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,

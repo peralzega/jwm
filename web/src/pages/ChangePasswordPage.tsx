@@ -47,7 +47,7 @@ export function ChangePasswordPage() {
   return (
     <main className="mx-auto mt-(--auth-top) w-full max-w-(--auth-card-w)">
       <form onSubmit={submit} className="gap-d flex flex-col rounded border border-line bg-surface p-(--card-pad)" noValidate>
-        <h1 className="text-(length:--font-heading) font-semibold">Ganti kata sandi</h1>
+        <h1 className="text-(length:--heading-size) font-semibold">Ganti kata sandi</h1>
         {wajib && <Alert kind="ok">Anda wajib mengganti kata sandi sementara sebelum melanjutkan.</Alert>}
         {(localError ?? change.isError) && <Alert>{localError ?? errorMessage(change.error)}</Alert>}
         <TextField
