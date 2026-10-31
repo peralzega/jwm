@@ -54,8 +54,8 @@ Keanggotaan dan akses proyek **[ASUMSI]** (usulan, perlu persetujuan):
 ## 2A. Autentikasi (keputusan: akun lokal)
 
 Keputusan: kredensial disimpan di PostgreSQL. Tanpa SSO dan tanpa
-"Sign in with Google". Google Workspace hanya dipakai sebagai kanal email
-notifikasi (SMTP).
+"Sign in with Google". Tidak ada pengiriman email pada v1 (revisi M7), sehingga
+aplikasi tidak memakai Google Workspace sama sekali.
 
 - Admin membuat akun. Tidak ada pendaftaran mandiri.
 - Login memakai email dan kata sandi.
@@ -67,9 +67,9 @@ notifikasi (SMTP).
   N kali gagal berturut-turut.
 - Kebijakan sandi: minimal 12 karakter, tolak sandi umum. **[ASUMSI]**
 - Ganti sandi wajib pada login pertama.
-- Reset sandi: token sekali pakai, masa berlaku singkat, dikirim lewat SMTP
-  Google Workspace. **[ASUMSI]** Metode SMTP (relay atau app password)
-  perlu dikonfirmasi dengan admin Workspace. Alternatif: reset manual oleh Admin.
+- Reset sandi: manual oleh Admin. Admin membuat sandi sementara yang
+  ditampilkan sekali dan wajib diganti saat login berikutnya (tanpa email,
+  revisi M7).
 - Menonaktifkan akun atau mengganti sandi mencabut semua sesi aktif.
 - Audit: login berhasil dan gagal, reset sandi, perubahan peran.
 - Keputusan final: tidak ada autentikasi dua faktor (TOTP) untuk semua peran,
@@ -345,8 +345,9 @@ Keputusan implementasi M6:
 Bentuk aturan: pemicu → kondisi → aksi.
 
 Pemicu v1: status berubah, tanggal tiba, item dibuat, penugasan berubah.
-Aksi v1: pindah grup, ubah kolom, kirim email, panggil webhook.
-Kanal notifikasi v1 hanya email. Tidak ada Telegram atau Google Chat.
+Aksi v1: pindah grup, ubah kolom, panggil webhook.
+Tidak ada kanal notifikasi bawaan pada v1: tanpa email (revisi M7), Telegram,
+atau Google Chat. Notifikasi ke luar dibuat lewat webhook (mis. alur n8n).
 
 Penerimaan:
 - Aturan dibuat lewat formulir, bukan kode.
@@ -356,7 +357,7 @@ Penerimaan:
 - Webhook memakai tanda tangan HMAC untuk integrasi n8n.
 
 Keputusan implementasi M7 (dikerjakan bertahap: M7a mesin aturan dan aksi
-item; M7b kirim email dan panggil webhook):
+item; M7b panggil webhook; aksi kirim email dibatalkan atas keputusan pengguna):
 - **Aturan per board** (`automation_rules`), maksimal 50 per board, 10 kondisi,
   dan 10 aksi. Dikelola manager efektif proyek (Project Manager, PMO, Admin);
   anggota lain hanya melihat aturan dan riwayatnya. Proyek arsip hanya-baca.
@@ -393,21 +394,39 @@ item; M7b kirim email dan panggil webhook):
   pemicu → kondisi → aksi, aktif/nonaktif, dan riwayat eksekusi. Pada board
   dengan aturan aktif, item yang baru diubah atau dibuat dimuat ulang sekitar
   1,5 detik kemudian agar hasil otomasi tampil.
-- **M7b (menyusul):** kirim email (hanya ke pengguna terdaftar yang aktif,
-  template tetap, antrean dengan percobaan ulang) dan webhook (HTTPS ke host di
-  `WEBHOOK_ALLOWED_HOSTS`, tanda tangan HMAC-SHA256, rahasia per aturan, batas
-  waktu 10 detik, 3 percobaan ulang).
+- **Aksi panggil webhook (M7b):**
+  - Tujuan hanya `https://` ke host di `WEBHOOK_ALLOWED_HOSTS` (dipisah koma,
+    opsional dengan port; entri tanpa port berlaku untuk port mana pun). Daftar
+    kosong = aksi webhook dinonaktifkan. Mencegah aturan dipakai untuk menembak
+    layanan internal (SSRF). URL tanpa kredensial dan tanpa fragmen; redirect
+    tidak diikuti. Daftar izin diperiksa ulang saat aturan berjalan dan saat
+    mengirim.
+  - Kiriman masuk antrean `webhook_outbox` dalam transaksi aturan, lalu dikirim
+    worker: POST JSON, batas waktu 10 detik, sukses hanya untuk 2xx. Gagal:
+    dicoba ulang 3 kali (jeda 30 detik, 2 menit, 10 menit), lalu `gagal`.
+    Riwayat kiriman: `GET /automations/{id}/webhooks`.
+  - Isi minimal: jenis `jwm.otomasi`, waktu, aturan (id, nama), pemicu (jenis,
+    kolom, nilai sebelum dan sesudah), item (id, judul, tautan board bila
+    `APP_BASE_URL` diisi), board, proyek. Bukan seluruh data item.
+  - Tanda tangan: header `X-JWM-Timestamp` (detik Unix), `X-JWM-Delivery`, dan
+    `X-JWM-Signature: sha256=<hex HMAC-SHA256(rahasia, "<timestamp>.<isi>")>`.
+    Penerima menolak tanda tangan yang tidak cocok dan timestamp yang terlalu lama.
+  - Rahasia acak 256-bit per aturan, dibuat saat aksi webhook pertama kali
+    ditambahkan dan hanya ditampilkan sekali (respons simpan atau
+    `POST /automations/{id}/webhook-secret` untuk mengganti, manager saja).
+    Tidak pernah ditulis ke audit atau dikirim balik di daftar aturan. Dihapus
+    bila aturan tidak lagi punya aksi webhook. **[ASUMSI]** disimpan tanpa
+    enkripsi di database.
 
 ### M8. Status Reporter dan Risk Analyzer (Fase 4)
 Penerimaan:
 - Laporan status terjadwal (mingguan, harian) per proyek.
 - Isi laporan: progres, tugas selesai, tugas berisiko, keputusan tertunda.
-- Pengiriman hanya lewat email.
-- Pengiriman memakai antrean sederhana di database dengan percobaan ulang
-  bila gagal. Kegagalan tercatat dan terlihat oleh Admin.
-- Pengiriman email lewat SMTP relay Google Workspace atau Gmail API.
-  **[ASUMSI]** Pilihan final dan batas kuota perlu diverifikasi dengan
-  administrator Workspace.
+- **[PERLU KEPUTUSAN]** Kanal pengiriman laporan. Rencana awal lewat email,
+  tetapi email ditiadakan pada revisi M7. Pilihan: laporan hanya tampil di
+  aplikasi, atau dikirim lewat webhook (mis. n8n meneruskannya).
+- Pengiriman (bila ada) memakai antrean sederhana di database dengan
+  percobaan ulang bila gagal. Kegagalan tercatat dan terlihat oleh Admin.
 - Setiap butir risiko menyertakan alasan yang dapat ditelusuri.
 
 ## 5. Aturan risiko dan health status
@@ -494,9 +513,12 @@ Estimasi total: sekitar 3–5 bulan untuk satu orang dengan Claude Code.
 
 1. (Terjawab) Data keuangan diinput manual. Tidak ada impor pada v1.
 2. (Terjawab) Tanpa SSO dan tanpa "Sign in with Google". Akun lokal di
-   PostgreSQL. Peran dikelola di dalam aplikasi. Google Workspace hanya untuk email.
+   PostgreSQL. Peran dikelola di dalam aplikasi. (Direvisi di M7) Tidak ada email,
+   jadi Google Workspace tidak dipakai.
 3. (Terjawab) Pilot 5–6 orang tim IT; rollout 20–50 orang. Jumlah proyek aktif belum diketahui.
-4. (Terjawab) Kanal notifikasi hanya email.
+4. (Terjawab, direvisi di M7) Tidak ada kanal notifikasi bawaan; tanpa email.
+   Notifikasi ke luar lewat webhook otomasi (mis. n8n). Kanal laporan M8 perlu
+   diputuskan.
 5. (Terjawab, direvisi di M3) Gantt dibangun sendiri. frappe-gantt, SVAR React
    Gantt, dan DHTMLX Gantt Community diperiksa. Ketiganya berlisensi MIT, tetapi
    tidak lolos syarat keamanan (XSS, CSP), aksesibilitas, atau token ukuran.

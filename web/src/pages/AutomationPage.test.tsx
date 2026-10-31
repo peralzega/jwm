@@ -65,7 +65,8 @@ function setup(opts: { manager?: boolean; rules?: AutomationRule[]; reject?: (c:
       if (rejected) return rejected
       const r = rule({ ...(c.body as Partial<AutomationRule>), id: 'r2' })
       rules = [...rules, r]
-      return { status: 201, body: r }
+      const webhook = r.aksi.some((a) => a.jenis === 'panggil_webhook')
+      return { status: 201, body: webhook ? { ...r, webhook_rahasia: 'whsec_rahasia_uji' } : r }
     },
     'PATCH /automations/r1': (c) => {
       rules = rules.map((r) => (r.id === 'r1' ? { ...r, ...(c.body as Partial<AutomationRule>) } : r))
@@ -76,6 +77,15 @@ function setup(opts: { manager?: boolean; rules?: AutomationRule[]; reject?: (c:
       return { status: 204 }
     },
     'GET /automations/r1/runs': { status: 200, body: { items: runs } },
+    'GET /automations/r1/webhooks': {
+      status: 200,
+      body: {
+        items: [
+          { id: 9, url: 'https://n8n.jiep.co.id/h', status: 'gagal', percobaan: 4, galat: 'penerima menjawab HTTP 500', kode_http: 500, dibuat_pada: '2026-11-05T02:00:00Z', selesai_pada: null },
+        ],
+      },
+    },
+    'POST /automations/r1/webhook-secret': { status: 200, body: { webhook_rahasia: 'whsec_baru' } },
     'PUT /items/a/values/c-status': (c) => ({ status: 200, body: { ...items[0], nilai: { 'c-status': (c.body as { nilai: string }).nilai } } }),
     'GET /items/a': { status: 200, body: { ...items[0], group_id: 'g2', nilai: { 'c-status': 'done' } } },
   })
@@ -166,5 +176,40 @@ describe('tab Otomasi', () => {
     await u.click(within(row).getAllByRole('gridcell')[COL.status] as HTMLElement)
     await u.click(within(await screen.findByRole('listbox')).getByText('Done'))
     await waitFor(() => expect(calls.some((c) => c.method === 'GET' && c.path === '/items/a')).toBe(true), { timeout: 3000 })
+  })
+})
+
+describe('aksi webhook', () => {
+  it('membuat aturan webhook; rahasia tampil sekali beserta cara verifikasi', async () => {
+    const calls = setup({ manager: true, rules: [] })
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Tambah aturan' }))
+    const form = screen.getByRole('form', { name: 'Aturan otomasi' })
+    await u.type(within(form).getByLabelText('Nama aturan'), 'Kabari n8n')
+    await u.selectOptions(within(form).getByLabelText('Jenis aksi 1'), 'panggil_webhook')
+    await u.type(within(form).getByLabelText('URL webhook aksi 1'), 'https://n8n.jiep.co.id/webhook/abc')
+    await u.click(within(form).getByRole('button', { name: 'Simpan aturan' }))
+    await waitFor(() =>
+      expect((calls.find((c) => c.method === 'POST')?.body as { aksi: unknown }).aksi).toEqual([
+        { jenis: 'panggil_webhook', url: 'https://n8n.jiep.co.id/webhook/abc' },
+      ]),
+    )
+    expect(await screen.findByLabelText('Rahasia webhook')).toHaveTextContent('whsec_rahasia_uji')
+    expect(screen.getByText(/X-JWM-Signature/)).toBeInTheDocument()
+    expect(await screen.findByText(/maka panggil webhook n8n\.jiep\.co\.id\./)).toBeInTheDocument()
+    await u.click(screen.getByRole('button', { name: 'Tutup' }))
+    expect(screen.queryByLabelText('Rahasia webhook')).not.toBeInTheDocument()
+  })
+
+  it('ganti rahasia dan riwayat kiriman webhook', async () => {
+    setup({ manager: true, rules: [rule({ aksi: [{ jenis: 'panggil_webhook', url: 'https://n8n.jiep.co.id/h' }] })] })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Ganti rahasia webhook Done ke Selesai' }))
+    expect(await screen.findByLabelText('Rahasia webhook')).toHaveTextContent('whsec_baru')
+    await u.click(screen.getByRole('button', { name: 'Riwayat Done ke Selesai' }))
+    const table = await screen.findByRole('table', { name: 'Kiriman webhook Done ke Selesai' })
+    expect(within(table).getByText('Gagal')).toHaveClass('text-danger')
+    expect(table).toHaveTextContent('HTTP 500 penerima menjawab HTTP 500')
   })
 })

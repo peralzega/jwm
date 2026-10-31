@@ -96,7 +96,9 @@ Spesifikasi lengkap: `docs/SPEC.md`. Baca sebelum mengerjakan modul apa pun.
 - Tidak ada pendaftaran mandiri. Hanya Admin membuat akun. Peran default Viewer.
 - Hanya Admin mengubah peran. Jangan pernah menurunkan atau menonaktifkan Admin aktif terakhir.
 - Menonaktifkan akun atau mengganti sandi harus mencabut semua sesi aktif.
-- Email notifikasi lewat SMTP Google Workspace. Itu satu-satunya peran Google.
+- Tidak ada pengiriman email pada v1 (keputusan revisi M7) dan tidak ada peran
+  Google. Integrasi ke luar hanya lewat webhook otomasi ke host di
+  `WEBHOOK_ALLOWED_HOSTS` (HTTPS, tanda tangan HMAC).
 - Aplikasi terbuka dari internet (lihat `docs/SPEC.md` bagian 7A). Anggap
   semua input tidak tepercaya.
 - Pasang header keamanan (CSP, frame-ancestors, nosniff, Referrer-Policy)

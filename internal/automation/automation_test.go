@@ -45,7 +45,9 @@ type fixture struct {
 	date    string
 }
 
-func newFixture(t *testing.T) *fixture {
+func newFixture(t *testing.T) *fixture { return newFixtureWith(t, automation.WebhookConfig{}) }
+
+func newFixtureWith(t *testing.T, wh automation.WebhookConfig) *fixture {
 	t.Helper()
 	pool := testutil.NewPool(t)
 	hasher, err := auth.NewHasher(auth.Argon2Params{Memory: 1024, Time: 1, Threads: 1, SaltLen: 16, KeyLen: 32})
@@ -58,11 +60,12 @@ func newFixture(t *testing.T) *fixture {
 	srv := httptest.NewServer(server.NewRouter(server.Deps{
 		Config: config.Config{LoginRatePerMinute: 1000}, Pool: pool, Auth: authSvc,
 		User: user.NewService(pool, hasher), Project: project.NewService(pool), Board: board.NewService(pool),
-		Automation: automation.NewService(pool), Log: log,
+		Automation: automation.NewService(pool, wh), Log: log,
 	}))
 	t.Cleanup(srv.Close)
 	fx := &fixture{t: t, pool: pool, hasher: hasher, url: srv.URL, worker: automation.NewWorker(pool, log, automation.DefaultLimits())}
 	fx.worker.Now = func() time.Time { return time.Date(2026, 11, 5, 9, 0, 0, 0, time.Local) }
+	fx.worker.Webhook = wh
 	pmUser := fx.seedUser(auth.RoleProjectManager)
 	fx.pm = fx.login(pmUser)
 	fx.project = fx.must(fx.pm, http.MethodPost, "/api/v1/projects", map[string]any{"nama": "Otomasi"}, http.StatusCreated).Body["id"].(string)

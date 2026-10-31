@@ -86,6 +86,8 @@ export function describeAction(ctx: DescribeContext, a: AutomationAction): strin
       const col = ctx.board.kolom.find((x) => x.id === a.column_id)
       return `ubah ${colName(ctx, a.column_id)} menjadi ${valueLabel(ctx, col, a.nilai)}`
     }
+    case 'panggil_webhook':
+      return `panggil webhook ${hostOf(a.url)}`
   }
 }
 
@@ -93,4 +95,12 @@ export function describeAction(ctx: DescribeContext, a: AutomationAction): strin
 export function describeRule(ctx: DescribeContext, r: AutomationRule): string {
   const kondisi = r.kondisi.length ? `, jika ${r.kondisi.map((c) => describeCondition(ctx, c)).join(' dan ')}` : ''
   return `${describeTrigger(ctx, r.pemicu)}${kondisi}, maka ${r.aksi.map((a) => describeAction(ctx, a)).join(', lalu ')}.`
+}
+
+function hostOf(u?: string): string {
+  try {
+    return u ? new URL(u).host : 'tanpa URL'
+  } catch {
+    return u ?? 'tanpa URL'
+  }
 }

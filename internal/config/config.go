@@ -43,6 +43,11 @@ type Config struct {
 	// Batas pencegahan loop otomasi (SPEC M7).
 	AutomationMaxPerRule int
 	AutomationMaxDepth   int
+
+	// WebhookAllowedHosts: host tujuan aksi webhook (kosong = webhook nonaktif).
+	WebhookAllowedHosts string
+	// AppBaseURL: alamat publik aplikasi untuk tautan di payload webhook.
+	AppBaseURL string
 }
 
 // IsProduction bernilai true bila APP_ENV=production.
@@ -113,6 +118,8 @@ func Load(getenv func(string) string) (Config, error) {
 		// ASSUMPTION: satu aturan maksimal 3 kali per item dalam satu rantai, kedalaman 5.
 		AutomationMaxPerRule: posInt("AUTOMATION_MAX_PER_RULE", "3"),
 		AutomationMaxDepth:   posInt("AUTOMATION_MAX_DEPTH", "5"),
+		WebhookAllowedHosts:  get("WEBHOOK_ALLOWED_HOSTS", ""),
+		AppBaseURL:           get("APP_BASE_URL", ""),
 	}
 
 	secure, err := strconv.ParseBool(get("SESSION_COOKIE_SECURE", "true"))

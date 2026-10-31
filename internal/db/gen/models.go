@@ -67,6 +67,12 @@ type AutomationRun struct {
 	Waktu   time.Time
 }
 
+type AutomationSecret struct {
+	RuleID     uuid.UUID
+	Rahasia    string
+	DibuatPada time.Time
+}
+
 type Board struct {
 	ID          uuid.UUID
 	ProjectID   uuid.UUID
@@ -203,6 +209,20 @@ type User struct {
 	DibuatPada      time.Time
 	DiubahPada      time.Time
 	Kepadatan       string
+}
+
+type WebhookOutbox struct {
+	ID          int64
+	RuleID      *uuid.UUID
+	Url         string
+	Payload     []byte
+	Status      string
+	Percobaan   int32
+	Berikutnya  time.Time
+	Galat       string
+	KodeHttp    *int32
+	DibuatPada  time.Time
+	SelesaiPada *time.Time
 }
 
 type WorkCalendar struct {

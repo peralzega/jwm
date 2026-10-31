@@ -53,6 +53,8 @@ type Rule struct {
 	DibuatOlehNama string      `json:"dibuat_oleh_nama,omitempty"`
 	DibuatPada     time.Time   `json:"dibuat_pada"`
 	DiubahPada     time.Time   `json:"diubah_pada"`
+	// WebhookRahasia hanya diisi sekali: saat rahasia HMAC dibuat atau diganti.
+	WebhookRahasia *string `json:"webhook_rahasia,omitempty"`
 }
 
 // RuleInput adalah isi aturan baru atau perubahan.
@@ -66,13 +68,14 @@ type RuleInput struct {
 
 // Service mengelola aturan otomasi.
 type Service struct {
-	pool *pgxpool.Pool
-	q    *dbgen.Queries
+	pool    *pgxpool.Pool
+	q       *dbgen.Queries
+	webhook WebhookConfig
 }
 
 // NewService membuat layanan aturan otomasi.
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, q: dbgen.New(pool)}
+func NewService(pool *pgxpool.Pool, webhook WebhookConfig) *Service {
+	return &Service{pool: pool, q: dbgen.New(pool), webhook: webhook}
 }
 
 func toRule(r dbgen.AutomationRule, creator string) (Rule, error) {
@@ -178,7 +181,7 @@ var valueTypes = []board.ColumnType{
 }
 
 // validate memeriksa dan menormalkan aturan terhadap skema board.
-func (s boardSchema) validate(in RuleInput) (RuleInput, error) {
+func (s boardSchema) validate(in RuleInput, webhook WebhookConfig) (RuleInput, error) {
 	in.Nama = strings.TrimSpace(in.Nama)
 	if in.Nama == "" || utf8.RuneCountInString(in.Nama) > 200 {
 		return in, invalid("nama wajib diisi, maksimal 200 karakter")
@@ -263,7 +266,7 @@ func (s boardSchema) validate(in RuleInput) (RuleInput, error) {
 			if a.GroupID == nil || !s.groups[*a.GroupID] {
 				return in, invalid("%s: grup tujuan tidak ada di board ini", what)
 			}
-			a.ColumnID, a.Nilai = nil, nil
+			a.ColumnID, a.Nilai, a.URL = nil, nil, ""
 		case ActionSetValue:
 			col, err := s.column(a.ColumnID, what, valueTypes...)
 			if err != nil {
@@ -272,7 +275,13 @@ func (s boardSchema) validate(in RuleInput) (RuleInput, error) {
 			if a.Nilai, err = s.normalize(col, a.Nilai, what); err != nil {
 				return in, err
 			}
-			a.GroupID = nil
+			a.GroupID, a.URL = nil, ""
+		case ActionWebhook:
+			u, err := webhook.ValidateURL(a.URL)
+			if err != nil {
+				return in, invalid("%s: %v", what, err)
+			}
+			a.URL, a.GroupID, a.ColumnID, a.Nilai = u, nil, nil, nil
 		default:
 			return in, invalid("%s: jenis tidak dikenal", what)
 		}
@@ -346,7 +355,7 @@ func (s *Service) Create(ctx context.Context, actor auth.Principal, boardID uuid
 		if err != nil {
 			return err
 		}
-		if in, err = schema.validate(in); err != nil {
+		if in, err = schema.validate(in, s.webhook); err != nil {
 			return err
 		}
 		p, k, a, err := marshalRule(in)
@@ -360,6 +369,9 @@ func (s *Service) Create(ctx context.Context, actor auth.Principal, boardID uuid
 			return fmt.Errorf("buat aturan: %w", err)
 		}
 		if out, err = toRule(r, actor.User.Nama); err != nil {
+			return err
+		}
+		if out.WebhookRahasia, err = syncSecret(ctx, q, r.ID, in.Aksi); err != nil {
 			return err
 		}
 		return record(ctx, q, actor, meta, r.ID, "buat", nil, in)
@@ -400,7 +412,7 @@ func (s *Service) Update(ctx context.Context, actor auth.Principal, id uuid.UUID
 		if err != nil {
 			return err
 		}
-		if in, err = schema.validate(in); err != nil {
+		if in, err = schema.validate(in, s.webhook); err != nil {
 			return err
 		}
 		p, k, a, err := marshalRule(in)
@@ -418,6 +430,9 @@ func (s *Service) Update(ctx context.Context, actor auth.Principal, id uuid.UUID
 			return err
 		}
 		if out, err = toRule(r, ""); err != nil {
+			return err
+		}
+		if out.WebhookRahasia, err = syncSecret(ctx, q, r.ID, in.Aksi); err != nil {
 			return err
 		}
 		return record(ctx, q, actor, meta, id, "ubah", prev, in)
@@ -476,6 +491,109 @@ func (s *Service) Runs(ctx context.Context, actor auth.Principal, id uuid.UUID) 
 	out := make([]Run, len(rows))
 	for i, x := range rows {
 		out[i] = Run{ID: x.ID, ItemID: x.ItemID, ItemJudul: x.ItemJudul, Hasil: x.Hasil, Pesan: x.Pesan, Waktu: x.Waktu}
+	}
+	return out, nil
+}
+
+func hasWebhook(acts []Action) bool {
+	return slices.ContainsFunc(acts, func(a Action) bool { return a.Jenis == ActionWebhook })
+}
+
+// syncSecret membuat rahasia HMAC bila aturan kini punya aksi webhook dan belum
+// punya rahasia (dikembalikan sekali), atau menghapusnya bila tidak lagi dipakai.
+func syncSecret(ctx context.Context, q *dbgen.Queries, ruleID uuid.UUID, acts []Action) (*string, error) {
+	if !hasWebhook(acts) {
+		if err := q.DeleteAutomationSecret(ctx, ruleID); err != nil {
+			return nil, fmt.Errorf("hapus rahasia webhook: %w", err)
+		}
+		return nil, nil
+	}
+	_, err := q.GetAutomationSecret(ctx, ruleID)
+	if err == nil {
+		return nil, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("baca rahasia webhook: %w", err)
+	}
+	return newSecret(ctx, q, ruleID)
+}
+
+func newSecret(ctx context.Context, q *dbgen.Queries, ruleID uuid.UUID) (*string, error) {
+	secret, err := NewWebhookSecret()
+	if err != nil {
+		return nil, err
+	}
+	if err := q.UpsertAutomationSecret(ctx, dbgen.UpsertAutomationSecretParams{RuleID: ruleID, Rahasia: secret}); err != nil {
+		return nil, fmt.Errorf("simpan rahasia webhook: %w", err)
+	}
+	return &secret, nil
+}
+
+// RotateSecret mengganti rahasia HMAC webhook aturan; rahasia baru dikembalikan
+// sekali. Kiriman yang masih mengantre ditandatangani dengan rahasia baru.
+func (s *Service) RotateSecret(ctx context.Context, actor auth.Principal, id uuid.UUID, meta auth.RequestMeta) (string, error) {
+	var secret string
+	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		q := s.q.WithTx(tx)
+		r, _, err := lockRule(ctx, q, actor, id)
+		if err != nil {
+			return err
+		}
+		rule, err := toRule(r, "")
+		if err != nil {
+			return err
+		}
+		if !hasWebhook(rule.Aksi) {
+			return invalid("aturan ini tidak memiliki aksi webhook")
+		}
+		sp, err := newSecret(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		secret = *sp
+		// Nilai rahasia tidak pernah dicatat di audit.
+		return record(ctx, q, actor, meta, id, "ganti_rahasia_webhook", nil, nil)
+	})
+	return secret, err
+}
+
+// Delivery adalah satu kiriman webhook.
+type Delivery struct {
+	ID          int64      `json:"id"`
+	URL         string     `json:"url"`
+	Status      string     `json:"status"`
+	Percobaan   int32      `json:"percobaan"`
+	Galat       string     `json:"galat"`
+	KodeHTTP    *int32     `json:"kode_http"`
+	DibuatPada  time.Time  `json:"dibuat_pada"`
+	SelesaiPada *time.Time `json:"selesai_pada"`
+}
+
+// Deliveries mengembalikan kiriman webhook terbaru aturan. Hak baca board.
+func (s *Service) Deliveries(ctx context.Context, actor auth.Principal, id uuid.UUID) ([]Delivery, error) {
+	r, err := s.q.GetAutomationRule(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("baca aturan: %w", err)
+	}
+	if err := board.BoardForRead(ctx, s.q, actor, r.BoardID); err != nil {
+		if errors.Is(err, board.ErrNotFound) || errors.Is(err, project.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	rows, err := s.q.ListWebhookDeliveries(ctx, dbgen.ListWebhookDeliveriesParams{RuleID: &id, Limit: MaxRunsListed})
+	if err != nil {
+		return nil, fmt.Errorf("daftar kiriman webhook: %w", err)
+	}
+	out := make([]Delivery, len(rows))
+	for i, x := range rows {
+		out[i] = Delivery{
+			ID: x.ID, URL: x.Url, Status: x.Status, Percobaan: x.Percobaan, Galat: x.Galat,
+			KodeHTTP: x.KodeHttp, DibuatPada: x.DibuatPada, SelesaiPada: x.SelesaiPada,
+		}
 	}
 	return out, nil
 }

@@ -32,6 +32,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Patch("/automations/{id}", h.update)
 	r.Delete("/automations/{id}", h.delete)
 	r.Get("/automations/{id}/runs", h.runs)
+	r.Get("/automations/{id}/webhooks", h.deliveries)
+	r.Post("/automations/{id}/webhook-secret", h.rotateSecret)
 }
 
 func actorAndMeta(r *http.Request) (auth.Principal, auth.RequestMeta) {
@@ -147,4 +149,32 @@ func (h *Handler) runs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": out})
+}
+
+func (h *Handler) deliveries(w http.ResponseWriter, r *http.Request) {
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	actor, _ := actorAndMeta(r)
+	out, err := h.svc.Deliveries(r.Context(), actor, id)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": out})
+}
+
+func (h *Handler) rotateSecret(w http.ResponseWriter, r *http.Request) {
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	secret, err := h.svc.RotateSecret(r.Context(), actor, id, meta)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{"webhook_rahasia": secret})
 }

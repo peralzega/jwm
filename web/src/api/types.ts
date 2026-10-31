@@ -364,7 +364,7 @@ export interface Budget {
 
 export type TriggerKind = 'item_dibuat' | 'status_berubah' | 'penugasan_berubah' | 'tanggal_tiba'
 export type ConditionKind = 'kolom_sama' | 'person_termasuk' | 'di_grup'
-export type ActionKind = 'pindah_grup' | 'ubah_kolom'
+export type ActionKind = 'pindah_grup' | 'ubah_kolom' | 'panggil_webhook'
 
 export interface AutomationTrigger {
   jenis: TriggerKind
@@ -387,6 +387,8 @@ export interface AutomationAction {
   group_id?: string
   column_id?: string
   nilai?: unknown
+  /** https:// ke host yang diizinkan server (panggil_webhook). */
+  url?: string
 }
 
 export interface AutomationRule {
@@ -400,6 +402,8 @@ export interface AutomationRule {
   dibuat_oleh_nama?: string
   dibuat_pada: string
   diubah_pada: string
+  /** Rahasia HMAC webhook; hanya ada sekali saat dibuat atau diganti. */
+  webhook_rahasia?: string
 }
 
 export interface AutomationRun {
@@ -409,4 +413,15 @@ export interface AutomationRun {
   hasil: 'berhasil' | 'dilewati' | 'gagal' | 'diblokir_loop'
   pesan: string
   waktu: string
+}
+
+export interface WebhookDelivery {
+  id: number
+  url: string
+  status: 'menunggu' | 'terkirim' | 'gagal'
+  percobaan: number
+  galat: string
+  kode_http: number | null
+  dibuat_pada: string
+  selesai_pada: string | null
 }

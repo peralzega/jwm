@@ -33,6 +33,7 @@ const CONDITIONS: { id: ConditionKind; label: string }[] = [
 const ACTIONS: { id: ActionKind; label: string }[] = [
   { id: 'pindah_grup', label: 'Pindahkan ke grup' },
   { id: 'ubah_kolom', label: 'Ubah nilai kolom' },
+  { id: 'panggil_webhook', label: 'Panggil webhook (mis. n8n)' },
 ]
 // Sama dengan backend: timeline tidak diubah otomasi (pergeseran successor).
 const VALUE_TYPES: ColumnType[] = ['status', 'priority', 'person', 'text', 'number', 'progress', 'date']
@@ -284,6 +285,18 @@ export function RuleForm({
                   <ColumnSelect board={board} types={VALUE_TYPES} value={a.column_id} label={`Kolom aksi ${n}`} onChange={(id) => setAct(i, { ...a, column_id: id, nilai: null })} />
                   <ColumnValue board={board} columnId={a.column_id} value={a.nilai} members={members} label={`Nilai aksi ${n}`} onChange={(v) => setAct(i, { ...a, nilai: v })} />
                 </>
+              )}
+              {a.jenis === 'panggil_webhook' && (
+                <input
+                  aria-label={`URL webhook aksi ${n}`}
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://n8n.jiep.co.id/webhook/…"
+                  maxLength={2000}
+                  className={`${FIELD} min-w-0 flex-1`}
+                  value={a.url ?? ''}
+                  onChange={(e) => setAct(i, { ...a, url: e.target.value })}
+                />
               )}
               <Button aria-label={`Hapus aksi ${n}`} disabled={d.aksi.length <= 1} onClick={() => setD({ ...d, aksi: d.aksi.filter((_, j) => j !== i) })}>
                 Hapus
