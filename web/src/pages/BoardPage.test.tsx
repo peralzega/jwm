@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BoardDetail, Item } from '../api/types'
+import type { BoardDetail, Dependency, Item } from '../api/types'
 import { COL, makeBoard, makeItem, makeMember } from '../board/testData'
 import { meReply, mockApi, renderApp, user, type Call } from '../test/utils'
 
@@ -49,7 +49,10 @@ afterEach(() => {
 const members = [makeMember({ user_id: 'u-1', nama: 'Budi' }), makeMember({ user_id: 'u-2', nama: 'Sari Dewi' })]
 
 /** Item tersimpan di "server" tiruan; PUT/PATCH/POST mengembalikan item terbaru. */
-function setup(items: Item[], opts: { board?: BoardDetail; reject?: (c: Call) => { status: number; body: unknown } | null } = {}) {
+function setup(
+  items: Item[],
+  opts: { board?: BoardDetail; deps?: Dependency[]; reject?: (c: Call) => { status: number; body: unknown } | null } = {},
+) {
   const store = new Map(items.map((it) => [it.id, it]))
   const board = opts.board ?? makeBoard()
   const save = (c: Call, fn: (it: Item, body: Record<string, unknown>) => Item) => {
@@ -67,6 +70,7 @@ function setup(items: Item[], opts: { board?: BoardDetail; reject?: (c: Call) =>
     'GET /boards/b1': { status: 200, body: board },
     'GET /boards/b1/items': { status: 200, body: { items, kursor_berikut: null } },
     'GET /projects/p1/members': { status: 200, body: { items: members } },
+    'GET /boards/b1/dependencies': { status: 200, body: { items: opts.deps ?? [] } },
   }
   for (const it of items) {
     handlers[`PATCH /items/${it.id}`] = (c) => save(c, (cur, b) => ({ ...cur, judul: String(b.judul) }))
@@ -387,6 +391,31 @@ describe('tabel board', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Item baru di Tugas')).not.toBeInTheDocument()
     expect(writes()).toEqual([])
+  })
+
+  it('kolom dependency: menampilkan predecessor, Enter membuka panel, Delete tidak menulis', async () => {
+    const dep: Dependency = { id: 'ab', board_id: 'b1', predecessor_id: 'a', successor_id: 'b', tipe: 'FS', lag_hari: 0 }
+    const { writes } = setup(
+      [makeItem({ id: 'a', judul: 'Alpha' }), makeItem({ id: 'b', judul: 'Beta', urutan: 2048 })],
+      { deps: [dep] },
+    )
+    const u = userEvent.setup()
+    const cell = await cellOf('Beta', COL.dependency)
+    await waitFor(() => expect(cell).toHaveTextContent('Alpha'))
+    // Alpha tidak punya predecessor (baris dicari lewat Beta karena judul Alpha kini muncul dua kali).
+    const rows = within(screen.getByRole('grid')).getAllByRole('row')
+    const alphaRow = rows.find((r) => within(r).queryAllByRole('gridcell')[0]?.textContent === 'Alpha')
+    expect(alphaRow && within(alphaRow).getAllByRole('gridcell')[COL.dependency]).toHaveTextContent('—')
+
+    await u.click(cell)
+    await u.keyboard('{Delete}')
+    expect(writes()).toEqual([])
+    await u.keyboard('{Enter}')
+    const panel = await screen.findByRole('dialog', { name: 'Dependensi Beta' })
+    expect(within(panel).getByRole('region', { name: 'Bergantung pada (predecessor)' })).toHaveTextContent('Alpha')
+    await u.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(document.activeElement).toBe(cell))
   })
 
   it('menu aksi memindah grup dan menghapus; baris tambah membuat item', async () => {

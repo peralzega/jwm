@@ -13,7 +13,11 @@ export interface DependencyLink {
 export interface Arrow {
   id: string
   d: string
-  /** Successor mulai pada atau sebelum predecessor selesai (aturan FS dilanggar). */
+  /**
+   * Aturan FS dilanggar. Dari backend (memperhitungkan lag dan hari kerja) bila
+   * tersedia; untuk batang yang sedang diubah: successor mulai pada atau sebelum
+   * predecessor selesai.
+   */
   violated: boolean
   /** Rentang vertikal (px) untuk menyaring panah di luar area terlihat. */
   top: number
@@ -33,12 +37,14 @@ export function arrowPath(x1: number, y1: number, x2: number, y2: number, gap: n
 /**
  * Panah untuk semua dependensi yang kedua itemnya tampil (punya jadwal dan
  * barisnya tidak tersembunyi). rowIndex memetakan id item ke indeks baris.
+ * server.local berisi item yang jadwalnya sedang diubah di klien (draf).
  */
 export function buildArrows(
   deps: DependencyLink[],
   spans: ReadonlyMap<string, Span>,
   rowIndex: ReadonlyMap<string, number>,
   geo: { range: Span; dayW: number; rowH: number; gap: number },
+  server?: { violated: ReadonlySet<string>; local: ReadonlySet<string> },
 ): Arrow[] {
   const out: Arrow[] = []
   for (const d of deps) {
@@ -54,7 +60,10 @@ export function buildArrows(
     out.push({
       id: d.id,
       d: arrowPath(pb.left + pb.width, y1, sb.left, y2, geo.gap, geo.rowH),
-      violated: ss.start <= ps.end,
+      violated:
+        server && !server.local.has(d.predecessor_id) && !server.local.has(d.successor_id)
+          ? server.violated.has(d.id)
+          : ss.start <= ps.end,
       top: Math.min(y1, y2) - geo.rowH,
       bottom: Math.max(y1, y2) + geo.rowH,
     })

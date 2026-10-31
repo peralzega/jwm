@@ -138,3 +138,11 @@ type User struct {
 	DiubahPada      time.Time
 	Kepadatan       string
 }
+
+type WorkCalendar struct {
+	Tanggal    pgtype.Date
+	HariKerja  bool
+	Keterangan string
+	DiubahOleh *uuid.UUID
+	DiubahPada time.Time
+}

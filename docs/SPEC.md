@@ -104,7 +104,8 @@ reports(id, project_id, dibuat_pada, isi_json)
 budget_entries(id, project_id, tanggal, jenis, jumlah, keterangan,
                dibuat_oleh)                       -- jenis: anggaran | realisasi
 audit_log(id, aktor_id, entitas, entitas_id, aksi, sebelum, sesudah, waktu)
-work_calendar(tanggal, hari_kerja, keterangan)    -- libur nasional
+work_calendar(tanggal, hari_kerja, keterangan, diubah_oleh, diubah_pada)
+                                                  -- menimpa pola Senin–Jumat
 ```
 
 Tipe kolom v1: `text`, `status`, `person`, `date`, `timeline`, `number`,
@@ -173,10 +174,65 @@ Penerimaan:
 - Durasi dihitung dalam hari kerja. Sabtu dan Minggu otomatis libur.
   **[ASUMSI]** Pola ini sesuai jam kerja JIEP.
 - Hari libur lain diinput manual oleh Admin lewat halaman sederhana
-  (tanggal dan keterangan) pada tabel `work_calendar`.
-- Tidak ada impor libur nasional, kalender per divisi, atau shift pada v1.
+  (tanggal dan keterangan) pada tabel `work_calendar`, atau diimpor dari CSV
+  yang diisi Admin dari data resmi. Aplikasi tidak membawa daftar libur bawaan.
+- Tidak ada impor otomatis dari sumber luar, kalender per divisi, atau shift pada v1.
 - Mengubah tanggal predecessor menggeser successor sesuai aturan terjadwal.
 - Tes unit mencakup: jalur ganda, lag, hari libur, grafik tak terhubung.
+
+Keputusan implementasi M4:
+- **Tanggal murni.** Semua tanggal adalah `DATE` atau string `YYYY-MM-DD`,
+  dihitung sebagai nomor hari tanpa jam dan zona waktu (diuji pada batas bulan,
+  tahun, dan tahun kabisat).
+- **Kalender kerja.** Senin–Jumat adalah hari kerja. Baris `work_calendar`
+  menimpa pola ini: `hari_kerja = false` untuk libur, `true` untuk akhir pekan
+  yang dijadikan hari kerja. Impor CSV (Admin): header `tanggal` (wajib),
+  `keterangan`, `hari_kerja` (ya/tidak); pemisah koma atau titik koma; satu baris
+  salah menolak seluruh berkas dengan nomor barisnya; opsi "ganti" menyamakan
+  isi tahun-tahun di berkas. `/schedule` memberi peringatan `kalender_kosong`
+  untuk setiap tahun dalam rentang jadwal yang belum punya satu baris pun.
+- **Durasi dan lag** dalam hari kerja. Item yang mulai pada hari libur dianggap
+  mulai pada hari kerja berikutnya. Item yang seluruhnya jatuh pada hari libur
+  berdurasi nol (menjadi satu hari kerja bila digeser otomatis). Lag negatif
+  (lead) diizinkan, −365 sampai 365.
+- **CPM.** Tanggal mulai terjadwal adalah batasan "mulai tidak lebih awal dari".
+  ES = maks(mulai terjadwal, EF predecessor + lag). Selesai proyek = EF
+  terbesar di board; LF dihitung mundur darinya. Slack = LS − ES (hari kerja,
+  tidak pernah negatif). Kritis bila slack = 0. Dihitung saat diminta
+  (`GET /boards/{id}/schedule`), tidak disimpan.
+- **Melanggar FS.** Successor boleh dijadwalkan mendahului predecessor-nya
+  (mis. diseret manual). Itu tidak ditolak, tetapi ditandai `melanggar_fs` pada
+  item dan `dependensi_dilanggar` pada dependensi, dan disorot di Gantt. ES
+  item tersebut dihitung dari predecessor, jadi berbeda dari jadwalnya.
+- **Item tanpa jadwal di tengah rantai** diperlakukan sebagai titik lewat
+  berdurasi nol: rantai tidak terputus, dan batasan predecessor (ditambah lag
+  kedua dependensi) diteruskan ke successor. Item ini ditandai `tanpa_jadwal`.
+  Item tanpa jadwal yang tidak punya predecessor terhitung tidak memiliki ES
+  (semua tanggal CPM null). Item tanpa jadwal dan tanpa dependensi tidak
+  disertakan.
+- **Item induk (`induk_id`).** API subitem belum ada. CPM memperlakukan setiap
+  item, termasuk induk dan subitem, sebagai item biasa. Jadwal subitem tidak
+  dijumlahkan ke induk, dan tidak ada dependensi implisit induk–subitem.
+  **[ASUMSI]** Ditinjau ulang saat subitem dibuka di UI.
+- **Pergeseran otomatis** hanya pada kolom timeline utama (kolom timeline
+  pertama board), hanya maju, dan durasi hari kerja tetap. Successor bergeser
+  bila mulainya lebih awal dari selesai predecessor yang berubah ditambah lag,
+  berantai ke successor berikutnya. Predecessor yang tidak berubah tidak
+  memicu pergeseran, sehingga pelanggaran lama di bagian lain tidak diubah diam-diam.
+  Mengubah kolom timeline lain tidak menggeser apa pun, dan Gantt menampilkan
+  catatannya.
+- **Hak akses pergeseran.** Pelaku harus berhak mengubah setiap successor yang
+  bergeser. Bila tidak, seluruh perubahan (termasuk item yang diubah) ditolak
+  dengan 409 `shift_forbidden` yang menyebut item terhalang; tidak ada
+  perubahan sebagian. Admin dan PMO (manager efektif) serta Project Manager
+  proyek selalu boleh. Member hanya bila ia pembuat atau penanggung jawab semua
+  successor yang bergeser. Viewer ditolak sejak item pertama.
+- **Audit.** Setiap successor yang bergeser dicatat `geser_otomatis` dengan
+  aktor = pelaku asli, `penyebab_id`/`penyebab_judul` = item yang diubah, dan
+  `predecessor_id` = predecessor langsung yang memaksa pergeseran.
+- **UI dependensi.** Sel kolom `dependency` di tabel menampilkan predecessor;
+  Enter membuka panel tambah/hapus (dengan lag). Di Gantt, tombol D atau ikon
+  di panel judul membuka panel yang sama.
 
 ### M5. Portofolio (Fase 3)
 Penerimaan:

@@ -585,12 +585,27 @@ paths:
                     person: array UUID anggota proyek (≤20); date: "YYYY-MM-DD";
                     timeline: {"mulai","selesai"}; number: angka; progress: bulat 0–100;
                     dependency: hanya-baca (lewat /boards/{id}/dependencies). null menghapus sel.
+      description: |
+        Mengubah kolom timeline utama (kolom timeline pertama board) menggeser
+        successor yang melanggar FS secara berantai, maju saja, dengan durasi
+        hari kerja tetap. Pelaku harus berhak mengubah setiap successor yang
+        bergeser; bila tidak, seluruh perubahan ditolak (409 shift_forbidden,
+        tanpa perubahan sebagian). Audit "geser_otomatis" mencatat pelaku asli
+        dan item penyebab.
       responses:
         "200":
-          description: OK
+          description: OK. geser_otomatis berisi successor yang ikut bergeser (bila ada).
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Item" }
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Item" }
+                  - type: object
+                    properties:
+                      geser_otomatis:
+                        type: array
+                        items: { $ref: "#/components/schemas/ShiftedItem" }
+        "409": { description: "shift_forbidden (pesan menyebut successor yang tidak boleh diubah), project_archived" }
         "422": { description: "validation, read_only_column" }
   /boards/{id}/dependencies:
     parameters:
@@ -611,7 +626,8 @@ paths:
       description: |
         Pelaku harus berhak mengubah kedua item. Ditolak bila antar-board, ke
         diri sendiri, ganda (pasangan predecessor-successor unik), atau membentuk
-        siklus. M3 belum menggeser successor otomatis (menyusul di M4).
+        siklus. Lag dalam hari kerja; lag negatif (lead) diizinkan. Membuat
+        dependensi tidak menggeser jadwal; pelanggaran FS dilaporkan /schedule.
       parameters:
         - { $ref: "#/components/parameters/CSRF" }
       requestBody:
@@ -647,6 +663,116 @@ paths:
         "204": { description: Dihapus }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { description: not_found }
+  /boards/{id}/schedule:
+    get:
+      summary: Jalur kritis (CPM) board pada satu kolom timeline
+      description: |
+        Dihitung saat diminta dari jadwal, dependensi FS, dan kalender kerja
+        (Senin–Jumat, ditimpa work_calendar). Aturan item tanpa jadwal dan item
+        induk: docs/SPEC.md M4.
+      parameters:
+        - { $ref: "#/components/parameters/BoardID" }
+        - name: timeline
+          in: query
+          description: ID kolom timeline; bawaan kolom timeline pertama (utama).
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScheduleView" }
+        "400": { description: "parameter timeline bukan UUID" }
+        "404": { description: not_found }
+        "422": { description: "no_timeline, validation (bukan kolom timeline board ini, rentang terlalu lebar), dependency_cycle (data lama)" }
+  /work-calendar:
+    get:
+      summary: Isi kalender kerja satu tahun (semua pengguna login)
+      parameters:
+        - name: tahun
+          in: query
+          description: Bawaan tahun berjalan (waktu server).
+          schema: { type: integer, minimum: 1900, maximum: 2999 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tahun: { type: integer }
+                  items: { type: array, items: { $ref: "#/components/schemas/CalendarDay" } }
+                  tahun_terisi: { type: array, items: { type: integer }, description: Tahun yang punya minimal satu baris }
+        "422": { description: validation }
+  /admin/work-calendar/{tanggal}:
+    parameters:
+      - { name: tanggal, in: path, required: true, schema: { type: string, format: date } }
+    put:
+      summary: Tambah atau ubah satu tanggal (Admin)
+      parameters:
+        - { $ref: "#/components/parameters/CSRF" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                hari_kerja: { type: boolean, default: false, description: "false = libur; true = akhir pekan yang dijadikan hari kerja" }
+                keterangan: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CalendarDay" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { description: validation }
+    delete:
+      summary: Hapus satu tanggal, kembali ke pola Senin–Jumat (Admin)
+      parameters:
+        - { $ref: "#/components/parameters/CSRF" }
+      responses:
+        "204": { description: Dihapus }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: not_found }
+  /admin/work-calendar/import:
+    post:
+      summary: Impor kalender kerja dari CSV (Admin), semua atau tidak sama sekali
+      description: |
+        Baris pertama header: tanggal (YYYY-MM-DD, wajib), keterangan, hari_kerja
+        (ya/tidak; kosong = libur), urutan bebas. Pemisah koma atau titik koma;
+        BOM UTF-8 diabaikan. Maksimal 3.000 baris. Semua galat dilaporkan dengan
+        nomor baris dan tidak ada yang disimpan. ganti = true menghapus dulu
+        semua tanggal pada tahun-tahun yang ada di berkas.
+      parameters:
+        - { $ref: "#/components/parameters/CSRF" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [csv]
+              properties:
+                csv: { type: string, description: "Isi berkas CSV (UTF-8); badan JSON maksimal 1 MB" }
+                ganti: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jumlah: { type: integer }
+                  tahun: { type: array, items: { type: integer } }
+                  dihapus: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { description: "invalid_csv (pesan berisi nomor baris)" }
   /admin/users:
     description: |
       Semua rute /admin hanya untuk peran Admin dan dapat dibatasi per jaringan
@@ -935,7 +1061,50 @@ components:
         predecessor_id: { type: string, format: uuid }
         successor_id: { type: string, format: uuid }
         tipe: { type: string, enum: [FS] }
-        lag_hari: { type: integer }
+        lag_hari: { type: integer, description: Lag dalam hari kerja }
+    ShiftedItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        judul: { type: string }
+        mulai: { type: string, format: date }
+        selesai: { type: string, format: date }
+        predecessor_id: { type: string, format: uuid, description: Predecessor langsung yang memaksa pergeseran }
+    ItemSchedule:
+      type: object
+      description: Tanggal YYYY-MM-DD; es sampai slack null untuk item tanpa jadwal yang tidak dapat dihitung.
+      properties:
+        item_id: { type: string, format: uuid }
+        es: { type: string, format: date, nullable: true }
+        ef: { type: string, format: date, nullable: true }
+        ls: { type: string, format: date, nullable: true }
+        lf: { type: string, format: date, nullable: true }
+        slack: { type: integer, nullable: true, description: Hari kerja }
+        kritis: { type: boolean, description: "slack = 0" }
+        melanggar_fs: { type: boolean, description: Dijadwalkan mulai sebelum predecessor selesai (dengan lag) }
+        tanpa_jadwal: { type: boolean }
+    ScheduleView:
+      type: object
+      properties:
+        kolom_id: { type: string, format: uuid }
+        kolom_utama: { type: boolean, description: Pergeseran otomatis hanya berlaku pada kolom utama }
+        selesai_proyek: { type: string, format: date, nullable: true }
+        items: { type: array, items: { $ref: "#/components/schemas/ItemSchedule" } }
+        dependensi_dilanggar: { type: array, items: { type: string, format: uuid } }
+        peringatan:
+          type: array
+          items:
+            type: object
+            properties:
+              kode: { type: string, enum: [kalender_kosong] }
+              tahun: { type: integer }
+              pesan: { type: string }
+    CalendarDay:
+      type: object
+      properties:
+        tanggal: { type: string, format: date }
+        hari_kerja: { type: boolean }
+        keterangan: { type: string }
     MemberList:
       type: object
       properties:

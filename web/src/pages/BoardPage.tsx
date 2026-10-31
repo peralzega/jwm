@@ -3,8 +3,10 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 
 import { api, errorMessage } from '../api/client'
-import type { BoardDetail, Group, Member } from '../api/types'
+import type { BoardDetail, Group, Item, Member, ShiftedItem } from '../api/types'
 import { BoardTable } from '../board/BoardTable'
+import { DependencyProvider } from '../board/deps/DependencyContext'
+import { ShiftNotice } from '../board/deps/ShiftNotice'
 import { parseScale, SCALES } from '../board/gantt/scale'
 import { statusColumns } from '../board/kanban/columns'
 import { LazyGantt } from '../board/LazyGantt'
@@ -16,6 +18,7 @@ import { Alert, Button, Loading } from '../components/ui'
 import { NotFoundPage } from './NotFoundPage'
 
 const NO_MEMBERS: Member[] = []
+const NO_ITEMS: Item[] = []
 
 function AddGroupForm({ boardId }: { boardId: string }) {
   const qc = useQueryClient()
@@ -55,13 +58,14 @@ export function BoardPage() {
   const { boardId = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const [error, setError] = useState<string | null>(null)
+  const [shifted, setShifted] = useState<ShiftedItem[]>([])
   const board = useQuery({
     queryKey: ['board', boardId],
     queryFn: () => api<BoardDetail>('GET', `/boards/${boardId}`),
     retry: false,
   })
   const items = useBoardItems(boardId, board.isSuccess)
-  const mutations = useItemMutations(boardId, setError)
+  const mutations = useItemMutations(boardId, setError, setShifted)
   const projectId = board.data?.project_id
   const members = useQuery({
     queryKey: ['members', projectId],
@@ -79,6 +83,7 @@ export function BoardPage() {
   const timelineCols = b.kolom.filter((c) => c.tipe === 'timeline').sort((x, y) => x.urutan - y.urutan)
   const timelineCol = timelineCols.find((c) => c.id === params.get('timeline')) ?? timelineCols[0]
   const scale = parseScale(params.get('skala'))
+  const hasDependencyCol = b.kolom.some((c) => c.tipe === 'dependency')
 
   function setParam(key: string, value: string | null) {
     setParams(
@@ -160,13 +165,17 @@ export function BoardPage() {
           </div>
         )}
       </div>
-      <div aria-live="polite">{error && <Alert>{error}</Alert>}</div>
+      <div aria-live="polite">
+        {error && <Alert>{error}</Alert>}
+        {shifted.length > 0 && <ShiftNotice items={shifted} onDismiss={() => setShifted([])} />}
+      </div>
       {items.isPending && (
         <p role="status" className="px-d py-d text-muted-foreground">
           Memuat item… {items.loaded > 0 && `${items.loaded.toLocaleString('id-ID')} dimuat`}
         </p>
       )}
       {items.isError && <Alert>{errorMessage(items.error)}</Alert>}
+      <DependencyProvider boardId={b.id} items={items.data ?? NO_ITEMS} enabled={!!items.data && (view === 'gantt' || hasDependencyCol)}>
       <TabsContent value="kanban">
         {items.data && !statusCol && (
           <p className="px-d py-d text-muted-foreground">Board ini belum memiliki kolom status untuk Kanban.</p>
@@ -208,6 +217,7 @@ export function BoardPage() {
           />
         )}
       </TabsContent>
+      </DependencyProvider>
       </Tabs>
     </div>
   )

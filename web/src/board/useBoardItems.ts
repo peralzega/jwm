@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { useState } from 'react'
 
 import { api, errorMessage } from '../api/client'
-import type { Item, Page } from '../api/types'
+import type { Item, Page, ShiftedItem } from '../api/types'
+import { dependenciesKey, scheduleKey } from './deps/queries'
 
 export const itemsKey = (boardId: string) => ['items', boardId] as const
 
@@ -52,9 +53,15 @@ type Snapshot = { before: Item | undefined }
 
 /**
  * Mutasi item yang langsung tampil di cache (optimistic) dan dikembalikan
- * bila server menolak. Galat dilaporkan lewat onError.
+ * bila server menolak. Galat dilaporkan lewat onError. onShifted menerima
+ * successor yang ikut digeser otomatis oleh perubahan timeline utama; nilainya
+ * sudah dipasang ke cache.
  */
-export function useItemMutations(boardId: string, onError: (message: string | null) => void) {
+export function useItemMutations(
+  boardId: string,
+  onError: (message: string | null) => void,
+  onShifted?: (items: ShiftedItem[]) => void,
+) {
   const qc = useQueryClient()
   const key = itemsKey(boardId)
 
@@ -92,7 +99,18 @@ export function useItemMutations(boardId: string, onError: (message: string | nu
       return ctx
     },
     onError: (err, v, ctx) => rollback(v.itemId, ctx, err),
-    onSuccess: accept,
+    onSuccess: (saved, v) => {
+      const { geser_otomatis: shifted, ...item } = saved
+      accept(item)
+      for (const s of shifted ?? []) {
+        replaceItem(qc, boardId, s.id, (it) => ({
+          ...it,
+          nilai: { ...it.nilai, [v.columnId]: { mulai: s.mulai, selesai: s.selesai } },
+        }))
+      }
+      if (shifted?.length) onShifted?.(shifted)
+      void qc.invalidateQueries({ queryKey: scheduleKey(boardId) })
+    },
   })
 
   const setTitle = useMutation({
@@ -127,7 +145,12 @@ export function useItemMutations(boardId: string, onError: (message: string | nu
       return ctx
     },
     onError: (err, v, ctx) => rollback(v.itemId, ctx, err),
-    onSuccess: () => onError(null),
+    onSuccess: () => {
+      onError(null)
+      // Dependensi item terhapus tidak lagi dihitung.
+      void qc.invalidateQueries({ queryKey: dependenciesKey(boardId) })
+      void qc.invalidateQueries({ queryKey: scheduleKey(boardId) })
+    },
   })
 
   const create = useMutation({

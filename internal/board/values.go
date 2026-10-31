@@ -47,7 +47,7 @@ var (
 	ErrInvalidColumnType = errors.New("tipe kolom tidak dikenal")
 	ErrInvalidConfig     = errors.New("konfigurasi kolom tidak valid")
 	ErrInvalidValue      = errors.New("nilai tidak sesuai tipe kolom")
-	ErrReadOnlyColumn    = errors.New("kolom dependency dikelola lewat API dependensi (M4)")
+	ErrReadOnlyColumn    = errors.New("kolom dependency dikelola lewat dependensi item, bukan nilai sel")
 	ErrInvalidColor      = errors.New("warna tidak dikenal")
 )
 

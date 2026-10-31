@@ -29,12 +29,16 @@ type Deps struct {
 	Project *project.Service
 	Board   *board.Service
 	// Schedule boleh nil pada tes paket lain; rutenya hanya dipasang bila diisi.
+	// Bila diisi, Schedule juga dipasang sebagai pergeseran otomatis di Board.
 	Schedule *schedule.Service
 	Log      *slog.Logger
 }
 
 // NewRouter membangun handler HTTP lengkap.
 func NewRouter(d Deps) http.Handler {
+	if d.Schedule != nil && d.Board != nil {
+		d.Board.SetCascader(d.Schedule)
+	}
 	cookies := auth.CookieConfig{Secure: d.Config.CookieSecure}
 	loginLimiter := httpx.NewRateLimiter(d.Config.LoginRatePerMinute)
 
@@ -78,6 +82,9 @@ func NewRouter(d Deps) http.Handler {
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs))
 				users.AdminRoutes(r)
+				if d.Schedule != nil {
+					schedule.NewHandler(d.Schedule, d.Log).AdminRoutes(r)
+				}
 			})
 		})
 	})

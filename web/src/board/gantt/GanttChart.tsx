@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   useCallback,
@@ -13,12 +12,15 @@ import {
   type PointerEvent,
 } from 'react'
 
-import { api, errorMessage } from '../../api/client'
-import type { BoardDetail, Column, Dependency, Item } from '../../api/types'
+import { errorMessage } from '../../api/client'
+import type { BoardDetail, Column, Item, ItemSchedule } from '../../api/types'
 import { Alert } from '../../components/ui'
 import { cssPx, useDensity } from '../../density'
 import { CellEditor } from '../cells/editors'
-import { asTimeline, isValidDate } from '../format'
+import { useDepsContext } from '../deps/DependencyContext'
+import { DependencyEditor } from '../deps/DependencyEditor'
+import { useSchedule } from '../deps/queries'
+import { asTimeline, formatDate, isValidDate } from '../format'
 import { buildRows, countItems, type GridRow } from '../rows'
 import type { ItemMutations } from '../useBoardItems'
 import { buildArrows } from './arrows'
@@ -41,15 +43,13 @@ import {
 // Gantt board: panel judul menempel di kiri, header dua tingkat menempel di
 // atas, baris tinggi tetap yang divirtualisasi (sama dengan tabel). Batang
 // digeser dengan seret atau keyboard; perubahan disimpan ke kolom timeline.
-// M3: menggeser batang belum menegakkan aturan FS; pergeseran otomatis
-// successor dan penanda kritis dihitung backend di M4.
+// Jalur kritis, pelanggaran FS (dengan lag dan hari kerja), dan pergeseran
+// otomatis successor dihitung backend (GET /schedule, PUT nilai timeline).
 
 const DAY_FALLBACK: Record<GanttScale, number> = { hari: 28, minggu: 12, bulan: 4 }
 // Jeda sebelum perubahan dari keyboard disimpan, agar tekan beruntun jadi satu permintaan.
 const KEY_COMMIT_MS = 600
-const NO_DEPS: Dependency[] = []
-
-export const dependenciesKey = (boardId: string) => ['dependencies', boardId] as const
+const NO_SCHEDULE: ReadonlyMap<string, ItemSchedule> = new Map()
 
 // committing: draf sudah dikirim ke server dan menunggu jawaban; jangan dikirim ulang.
 type Draft = { id: string; span: Span; committing?: boolean }
@@ -83,15 +83,23 @@ export function GanttChart({
   /** Hari ini (nomor hari UTC); dapat diisi tes. */
   today?: number
 }) {
-  const deps = useQuery({
-    queryKey: dependenciesKey(board.id),
-    queryFn: () => api<{ items: Dependency[] }>('GET', `/boards/${board.id}/dependencies`).then((r) => r.items),
-  })
+  const depsCtx = useDepsContext()
+  const schedule = useSchedule(board.id, timelineCol.id)
+  const schedById = useMemo(
+    () => (schedule.data ? new Map(schedule.data.items.map((s) => [s.item_id, s])) : NO_SCHEDULE),
+    [schedule.data],
+  )
+  // Pergeseran otomatis hanya berlaku pada kolom timeline pertama (sama dengan backend).
+  const primaryCol = useMemo(
+    () => [...board.kolom].filter((c) => c.tipe === 'timeline').sort((a, b) => a.urutan - b.urutan)[0],
+    [board.kolom],
+  )
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [activeRow, setActiveRow] = useState(-1)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [editing, setEditing] = useState<{ id: string; anchor: HTMLElement } | null>(null)
+  const [depEditing, setDepEditing] = useState<{ id: string; anchor: HTMLElement } | null>(null)
   const [announce, setAnnounce] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const focusPending = useRef(false)
@@ -137,10 +145,23 @@ export function GanttChart({
   const headerH = 2 * rowPx
 
   const ticks = useMemo(() => headerTicks(range, scale, dayW), [range, scale, dayW])
-  const arrows = useMemo(
-    () => buildArrows(deps.data ?? NO_DEPS, spans, rowIndex, { range, dayW, rowH: rowPx, gap }),
-    [deps.data, spans, rowIndex, range, dayW, rowPx, gap],
-  )
+  // Jadwal tersimpan saat hasil CPM terakhir tiba. Item yang jadwalnya berbeda
+  // sejak itu (atau sedang diseret) memakai pemeriksaan FS lokal sampai CPM
+  // dihitung ulang, agar panah tidak menampilkan status lama.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sengaja hanya diperbarui saat data jadwal berganti
+  const scheduledSpans = useMemo(() => baseSpans, [schedule.data])
+  const arrows = useMemo(() => {
+    let server: { violated: ReadonlySet<string>; local: ReadonlySet<string> } | undefined
+    if (schedule.data) {
+      const local = new Set<string>()
+      for (const [id, s] of spans) {
+        if (!sameSpan(scheduledSpans.get(id), s)) local.add(id)
+      }
+      for (const id of scheduledSpans.keys()) if (!spans.has(id)) local.add(id)
+      server = { violated: new Set(schedule.data.dependensi_dilanggar), local }
+    }
+    return buildArrows(depsCtx.deps, spans, rowIndex, { range, dayW, rowH: rowPx, gap }, server)
+  }, [depsCtx.deps, spans, rowIndex, range, dayW, rowPx, gap, schedule.data, scheduledSpans])
 
   // Proyek ini tidak memakai React Compiler; peringatan memoisasi tidak berlaku.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -201,10 +222,10 @@ export function GanttChart({
   )
 
   useEffect(() => {
-    if (!focusPending.current || editing) return
+    if (!focusPending.current || editing || depEditing) return
     focusPending.current = false
     focusRow(current)
-  }, [current, editing, focusRow])
+  }, [current, editing, depEditing, focusRow])
 
   const commit = useCallback(
     (id: string, span: Span) => {
@@ -285,7 +306,16 @@ export function GanttChart({
       e.preventDefault()
       flushKeyDraft()
       setEditing({ id: it.id, anchor: e.currentTarget })
+    } else if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault()
+      flushKeyDraft()
+      setDepEditing({ id: it.id, anchor: e.currentTarget })
     }
+  }
+
+  function openDeps(it: Item, anchor: HTMLElement) {
+    flushKeyDraft()
+    setDepEditing({ id: it.id, anchor })
   }
 
   function toggleGroup(groupId: string) {
@@ -344,13 +374,29 @@ export function GanttChart({
   const visibleArrows = arrows.filter((a) => a.bottom >= viewTop && a.top <= viewBottom)
   const bodyH = virtualizer.getTotalSize()
   const violated = arrows.some((a) => a.violated)
+  const anyCritical = schedule.data?.items.some((s) => s.kritis && !s.tanpa_jadwal) ?? false
+  const anyLate = schedule.data?.items.some((s) => s.melanggar_fs) ?? false
+  const depItem = depEditing ? byId.get(depEditing.id) : undefined
 
   return (
     <div className="gap-d flex flex-col">
-      {deps.isError && <Alert>Dependensi gagal dimuat: {errorMessage(deps.error)}</Alert>}
+      {depsCtx.loadError != null && <Alert>Dependensi gagal dimuat: {errorMessage(depsCtx.loadError)}</Alert>}
+      {schedule.isError && <Alert>Jalur kritis gagal dihitung: {errorMessage(schedule.error)}</Alert>}
+      {schedule.data?.peringatan.map((w) => (
+        <Alert key={`${w.kode}:${w.tahun ?? ''}`} kind="ok">
+          {w.pesan}
+        </Alert>
+      ))}
+      {primaryCol && primaryCol.id !== timelineCol.id && (
+        <p role="note" className="text-muted-foreground">
+          Pergeseran otomatis successor tidak berlaku pada kolom {timelineCol.judul}. Pergeseran hanya terjadi saat
+          jadwal di kolom timeline utama ({primaryCol.judul}) berubah.
+        </p>
+      )}
       <p id={helpId} className="sr-only">
         Panah atas dan bawah berpindah baris. Panah kiri dan kanan menggeser jadwal satu hari; Shift dengan panah
-        mengubah tanggal selesai. Enter membuka editor tanggal. Esc membatalkan perubahan yang belum disimpan.
+        mengubah tanggal selesai. Enter membuka editor tanggal. D membuka dependensi item. Esc membatalkan perubahan yang
+        belum disimpan.
       </p>
       <div aria-live="polite" className="sr-only">
         {announce}
@@ -446,6 +492,8 @@ export function GanttChart({
                 top={vr.start - headerH}
                 totalW={totalW}
                 span={row.kind === 'item' ? spans.get(row.item.id) : undefined}
+                sched={row.kind === 'item' ? schedById.get(row.item.id) : undefined}
+                onOpenDeps={openDeps}
                 range={range}
                 dayW={dayW}
                 todayX={Math.max(0, todayX)}
@@ -465,13 +513,28 @@ export function GanttChart({
         </div>
       </div>
       <p className="gap-d flex flex-wrap text-muted-foreground">
-        <span>Seret batang untuk menggeser jadwal; seret ujungnya untuk mengubah tanggal mulai atau selesai.</span>
-        {violated && (
+        <span>
+          Seret batang untuk menggeser jadwal; seret ujungnya untuk mengubah tanggal mulai atau selesai. Tekan D untuk
+          mengatur dependensi.
+        </span>
+        {anyCritical && <span>Batang merah: jalur kritis (slack 0 hari kerja).</span>}
+        {(violated || anyLate) && (
           <span className="text-destructive">
-            Panah putus-putus merah: successor mulai sebelum predecessor selesai. Pergeseran otomatis menyusul (M4).
+            Garis putus-putus merah: item dijadwalkan mulai sebelum predecessor selesai (termasuk lag).
           </span>
         )}
+        {schedule.data?.selesai_proyek && <span>Perkiraan selesai: {formatDate(schedule.data.selesai_proyek)}.</span>}
       </p>
+      {depEditing && depItem && (
+        <DependencyEditor
+          item={depItem}
+          anchor={depEditing.anchor}
+          onClose={() => {
+            setDepEditing(null)
+            focusPending.current = true
+          }}
+        />
+      )}
       {editing && editItem && (
         <CellEditor
           col={timelineCol}
@@ -501,6 +564,8 @@ function GanttRow({
   top,
   totalW,
   span,
+  sched,
+  onOpenDeps,
   range,
   dayW,
   todayX,
@@ -520,6 +585,9 @@ function GanttRow({
   top: number
   totalW: number
   span: Span | undefined
+  /** Hasil CPM item (kritis, slack, melanggar FS) dari backend. */
+  sched: ItemSchedule | undefined
+  onOpenDeps: (it: Item, anchor: HTMLElement) => void
   range: Span
   dayW: number
   todayX: number
@@ -576,14 +644,32 @@ function GanttRow({
   }
   const ring = 'outline-none focus-visible:ring-(length:--focus-ring-w) focus-visible:ring-ring focus-visible:ring-offset-(length:--line-w)'
   const access = it.bisa_ubah ? '' : ', hanya baca'
+  const kritis = !!sched?.kritis
+  const late = !!sched?.melanggar_fs
+  const cpm = `${kritis ? ', jalur kritis' : sched?.slack != null ? `, slack ${sched.slack} hari kerja` : ''}${
+    late ? ', mulai sebelum predecessor selesai' : ''
+  }`
   return (
     <div role="row" aria-rowindex={index + 2} className="gantt-row absolute top-0 left-0 w-max border-b border-line" style={rowStyle}>
       <div
         role="gridcell"
         title={it.judul}
-        className="px-d sticky left-0 z-10 flex w-(--gantt-list-w) shrink-0 items-center border-r border-line bg-surface"
+        className="px-d gap-d sticky left-0 z-10 flex w-(--gantt-list-w) shrink-0 items-center justify-between border-r border-line bg-surface"
       >
         <span className="truncate">{it.judul}</span>
+        {/* Di luar urutan Tab (roving tabindex baris); keyboard memakai tombol D. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={`Dependensi ${it.judul}`}
+          title="Dependensi (D)"
+          onClick={(e) => onOpenDeps(it, e.currentTarget)}
+          className="shrink-0 rounded px-(--space-sm) text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" className="size-(--icon-size) fill-none stroke-current">
+            <path d="M2 4h6v8h6M11 9l3 3-3 3" strokeWidth="1.5" />
+          </svg>
+        </button>
       </div>
       <div role="gridcell" className="relative shrink-0" style={{ width: totalW }}>
         {box && span ? (
@@ -592,14 +678,16 @@ function GanttRow({
             role="button"
             data-left={box.left}
             data-width={box.width}
-            aria-label={`${it.judul}: ${describeSpan(span)}${it.kritis ? ', jalur kritis' : ''}${access}`}
+            aria-label={`${it.judul}: ${describeSpan(span)}${cpm}${access}`}
+            data-kritis={kritis || undefined}
+            data-violates={late || undefined}
             onPointerDown={(e) => onPointerDown(e, it, index)}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
             onBlur={onBlurBar}
             className={`gantt-bar px-d absolute flex touch-none items-center overflow-hidden rounded text-(length:--font-xs) select-none ${ring} ${
-              it.kritis ? 'bg-destructive text-primary-foreground' : it.bisa_ubah ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground text-primary-foreground'
+              kritis ? 'bg-destructive text-primary-foreground' : it.bisa_ubah ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground text-primary-foreground'
             } ${it.bisa_ubah ? 'cursor-grab' : 'cursor-default'}`}
             style={{ left: box.left, width: box.width }}
           >

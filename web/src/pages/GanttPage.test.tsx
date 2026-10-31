@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { BoardDetail, Dependency, Item } from '../api/types'
+import type { BoardDetail, Dependency, Item, ItemSchedule, ScheduleView } from '../api/types'
 import { describeSpan, isoOf, todayNum } from '../board/gantt/scale'
 import { makeBoard, makeItem } from '../board/testData'
 import { meReply, mockApi, renderApp, user, type Call } from '../test/utils'
@@ -49,17 +49,40 @@ const baseItems = (): Item[] => [
   makeItem({ id: 'b', judul: 'Beta', urutan: 2, nilai: tl(2, 6) }),
   makeItem({ id: 'c', judul: 'Gamma', urutan: 3 }),
   makeItem({ id: 'd', group_id: 'g2', judul: XSS, urutan: 1, nilai: tl(1, 1), bisa_ubah: false }),
-  // Penanda kritis tiruan: API M3 belum mengirimnya (dihitung backend di M4).
-  makeItem({ id: 'e', group_id: 'g2', judul: 'Kritis', urutan: 2, nilai: tl(3, 5), kritis: true }),
+  makeItem({ id: 'e', group_id: 'g2', judul: 'Kritis', urutan: 2, nilai: tl(3, 5) }),
 ]
 
-const dep = (id: string, p: string, s: string): Dependency => ({
+const dep = (id: string, p: string, s: string, lag_hari = 0): Dependency => ({
   id,
   board_id: 'b1',
   predecessor_id: p,
   successor_id: s,
   tipe: 'FS',
-  lag_hari: 0,
+  lag_hari,
+})
+
+// Hasil CPM tiruan (hanya untuk tes): backend menghitungnya dari dependensi dan kalender.
+const sched = (item_id: string, over: Partial<ItemSchedule> = {}): ItemSchedule => ({
+  item_id,
+  es: null,
+  ef: null,
+  ls: null,
+  lf: null,
+  slack: null,
+  kritis: false,
+  melanggar_fs: false,
+  tanpa_jadwal: false,
+  ...over,
+})
+
+const scheduleView = (over: Partial<ScheduleView> = {}): ScheduleView => ({
+  kolom_id: 'c-timeline',
+  kolom_utama: true,
+  selesai_proyek: null,
+  items: [sched('e', { kritis: true, slack: 0 })],
+  dependensi_dilanggar: [],
+  peringatan: [],
+  ...over,
 })
 
 function setup(
@@ -67,6 +90,11 @@ function setup(
   opts: {
     board?: BoardDetail
     deps?: Dependency[]
+    schedule?: ScheduleView
+    /** Successor yang ikut digeser oleh PUT (respons geser_otomatis). */
+    shift?: Item['geser_otomatis']
+    /** Rute tambahan, mis. POST/DELETE dependensi. */
+    extra?: Parameters<typeof mockApi>[0]
     reject?: (c: Call) => { status: number; body: unknown } | null
     /** Tahan jawaban PUT sampai fungsi yang didorong ke larik ini dipanggil. */
     hold?: (() => void)[]
@@ -81,6 +109,8 @@ function setup(
     'GET /boards/b1/items': { status: 200, body: { items, kursor_berikut: null } },
     'GET /projects/p1/members': { status: 200, body: { items: [] } },
     'GET /boards/b1/dependencies': { status: 200, body: { items: opts.deps ?? [dep('ab', 'a', 'b')] } },
+    'GET /boards/b1/schedule': { status: 200, body: opts.schedule ?? scheduleView() },
+    ...opts.extra,
   }
   for (const it of items) {
     handlers[`PUT /items/${it.id}/values/c-timeline`] = async (c) => {
@@ -90,7 +120,7 @@ function setup(
       const cur = store.get(it.id) ?? it
       const next = { ...cur, nilai: { ...cur.nilai, 'c-timeline': (c.body as { nilai: unknown }).nilai } }
       store.set(it.id, next)
-      return { status: 200, body: next }
+      return { status: 200, body: opts.shift ? { ...next, geser_otomatis: opts.shift } : next }
     }
   }
   const calls = mockApi(handlers)
@@ -119,21 +149,52 @@ describe('Gantt', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
-  it('penanda kritis dari API disorot dan disebut di label', async () => {
-    setup()
-    const b = await bar('Kritis')
-    expect(b).toHaveAccessibleName(`Kritis: ${span(3, 5)}, jalur kritis`)
-    expect(b.className).toContain('bg-destructive')
+  it('kritis, slack, dan melanggar FS dari /schedule disorot dan disebut di label', async () => {
+    setup(baseItems(), {
+      schedule: scheduleView({
+        items: [
+          sched('e', { kritis: true, slack: 0 }),
+          sched('a', { slack: 3 }),
+          sched('b', { kritis: true, slack: 0, melanggar_fs: true }),
+        ],
+      }),
+    })
+    const k = await bar('Kritis')
+    // Hasil /schedule tiba setelah item; label diperbarui setelahnya.
+    await waitFor(() => expect(k).toHaveAccessibleName(`Kritis: ${span(3, 5)}, jalur kritis`))
+    expect(k.className).toContain('bg-destructive')
+    expect(await bar('Alpha')).toHaveAccessibleName(`Alpha: ${span(0, 4)}, slack 3 hari kerja`)
+    const beta = await bar('Beta')
+    expect(beta).toHaveAccessibleName(`Beta: ${span(2, 6)}, jalur kritis, mulai sebelum predecessor selesai`)
+    expect(beta).toHaveAttribute('data-violates')
+    expect(screen.getByText(/Batang merah: jalur kritis/)).toBeInTheDocument()
+    expect(screen.getByText(/Garis putus-putus merah/)).toBeInTheDocument()
   })
 
-  it('panah dependensi; pelanggaran FS ditandai dan dijelaskan', async () => {
-    setup(baseItems(), { deps: [dep('ab', 'a', 'b'), dep('ae', 'a', 'e'), dep('ac', 'a', 'c')] })
+  it('panah dependensi; pelanggaran FS dari backend (memperhitungkan lag) ditandai', async () => {
+    // a→e tidak tumpang tindih di layar, tetapi backend menghitung lag dan menandainya.
+    setup(baseItems(), {
+      deps: [dep('ab', 'a', 'b'), dep('ae', 'a', 'e', 3), dep('ac', 'a', 'c')],
+      schedule: scheduleView({ dependensi_dilanggar: ['ae'] }),
+    })
     await bar('Alpha')
     const svg = await screen.findByTestId('gantt-arrows')
     // Gamma belum dijadwalkan: panahnya tidak digambar.
     await waitFor(() => expect(svg.querySelectorAll(':scope > path')).toHaveLength(2))
-    expect(svg.querySelectorAll(':scope > path[data-violated]')).toHaveLength(2)
-    expect(screen.getByText(/Panah putus-putus merah/)).toBeInTheDocument()
+    await waitFor(() => expect(svg.querySelectorAll(':scope > path[data-violated]')).toHaveLength(1))
+    expect(screen.getByText(/Garis putus-putus merah/)).toBeInTheDocument()
+  })
+
+  it('saat batang diseret, pelanggaran dihitung di klien sampai CPM dihitung ulang', async () => {
+    const items = [makeItem({ id: 'a', judul: 'Alpha', nilai: tl(0, 2) }), makeItem({ id: 'b', judul: 'Beta', urutan: 2, nilai: tl(3, 4) })]
+    setup(items)
+    const beta = await bar('Beta')
+    const svg = await screen.findByTestId('gantt-arrows')
+    await waitFor(() => expect(svg.querySelectorAll(':scope > path')).toHaveLength(1))
+    expect(svg.querySelector(':scope > path[data-violated]')).toBeNull()
+    fireEvent.pointerDown(beta, { clientX: 100, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(beta, { clientX: 100 - 2 * DAY_W, pointerId: 1 })
+    expect(svg.querySelector(':scope > path[data-violated]')).not.toBeNull()
   })
 
   it('tanpa pelanggaran: tidak ada catatan pelanggaran', async () => {
@@ -143,7 +204,7 @@ describe('Gantt', () => {
     const svg = await screen.findByTestId('gantt-arrows')
     await waitFor(() => expect(svg.querySelectorAll(':scope > path')).toHaveLength(1))
     expect(svg.querySelector(':scope > path[data-violated]')).toBeNull()
-    expect(screen.queryByText(/Panah putus-putus merah/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Garis putus-putus merah/)).not.toBeInTheDocument()
   })
 
   it('keyboard: panah menggeser, Shift+panah mengubah selesai; tekan beruntun jadi satu simpan', async () => {
@@ -308,8 +369,104 @@ describe('Gantt', () => {
     const { router } = setup(items, { board: { ...board, kolom: [...board.kolom, extra] }, deps: [] })
     const u = userEvent.setup()
     expect(await bar('Alpha')).toHaveAccessibleName(`Alpha: ${span(0, 1)}`)
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
     await u.selectOptions(screen.getByRole('combobox', { name: 'Kolom timeline' }), 'c-tl2')
     expect(router.state.location.search).toContain('timeline=c-tl2')
     await waitFor(async () => expect(await bar('Alpha')).toHaveAccessibleName(`Alpha: ${span(5, 9)}`))
+    // Kolom bukan utama: pergeseran otomatis tidak berlaku.
+    expect(screen.getByRole('note')).toHaveTextContent(
+      `Pergeseran otomatis successor tidak berlaku pada kolom Rencana awal. Pergeseran hanya terjadi saat jadwal di kolom timeline utama (${first.judul}) berubah.`,
+    )
+  })
+
+  it('peringatan kalender kerja yang belum diisi tampil', async () => {
+    setup(baseItems(), {
+      schedule: scheduleView({
+        peringatan: [{ kode: 'kalender_kosong', tahun: 2027, pesan: 'Kalender kerja 2027 belum diisi. Hanya Sabtu dan Minggu yang dihitung libur.' }],
+        selesai_proyek: '2027-01-05',
+      }),
+    })
+    expect(await screen.findByText(/Kalender kerja 2027 belum diisi/)).toBeInTheDocument()
+    expect(screen.getByText(/Perkiraan selesai: 5 Jan 2027/)).toBeInTheDocument()
+  })
+
+  it('pergeseran otomatis: successor diperbarui dan diumumkan; jadwal dihitung ulang', async () => {
+    const { calls } = setup(baseItems(), {
+      shift: [{ id: 'b', judul: 'Beta', mulai: iso(5), selesai: iso(9), predecessor_id: 'a' }],
+    })
+    const u = userEvent.setup()
+    const alpha = await bar('Alpha')
+    await waitFor(() => expect(calls.filter((c) => c.path === '/boards/b1/schedule')).toHaveLength(1))
+    act(() => alpha.focus())
+    await u.keyboard('{Shift>}[ArrowRight]{/Shift}')
+    expect(await screen.findByText(/1 item ikut bergeser agar urutan dependensi terpenuhi: Beta/)).toBeInTheDocument()
+    expect(await bar('Beta')).toHaveAccessibleName(`Beta: ${span(5, 9)}`)
+    await waitFor(() => expect(calls.filter((c) => c.path === '/boards/b1/schedule')).toHaveLength(2))
+    await u.click(screen.getByRole('button', { name: 'Tutup' }))
+    expect(screen.queryByText(/ikut bergeser/)).not.toBeInTheDocument()
+  })
+
+  it('D membuka panel dependensi: tambah dan hapus predecessor, galat siklus tampil', async () => {
+    let deps = [dep('ab', 'a', 'b')]
+    const { calls } = setup(baseItems(), {
+      extra: {
+        'GET /boards/b1/dependencies': () => ({ status: 200, body: { items: deps } }),
+        'POST /boards/b1/dependencies': (c) => {
+          const body = c.body as { predecessor_id: string; successor_id: string; lag_hari: number }
+          if (body.predecessor_id === 'e') {
+            return { status: 422, body: { error: 'dependency_cycle', message: 'Dependensi ditolak karena membentuk siklus: "Beta" sudah mendahului "Kritis".' } }
+          }
+          const d = dep('nb', body.predecessor_id, body.successor_id, body.lag_hari)
+          deps = [...deps, d]
+          return { status: 201, body: d }
+        },
+        'DELETE /dependencies/ab': () => {
+          deps = deps.filter((d) => d.id !== 'ab')
+          return { status: 204 }
+        },
+      },
+    })
+    const u = userEvent.setup()
+    const beta = await bar('Beta')
+    act(() => beta.focus())
+    await u.keyboard('d')
+    const panel = await screen.findByRole('dialog', { name: 'Dependensi Beta' })
+    const preds = within(panel).getByRole('region', { name: 'Bergantung pada (predecessor)' })
+    expect(within(preds).getByText('Alpha')).toBeInTheDocument()
+
+    // Tambah Gamma dengan lag 2 hari kerja.
+    await u.clear(within(panel).getByLabelText('Lag (hari kerja)'))
+    await u.type(within(panel).getByLabelText('Lag (hari kerja)'), '2')
+    await u.type(within(panel).getByLabelText('Tambah predecessor'), 'gam')
+    await u.click(within(panel).getByRole('button', { name: 'Tambahkan Gamma sebagai predecessor' }))
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ predecessor_id: 'c', successor_id: 'b', lag_hari: 2 }),
+    )
+    expect(await within(preds).findByText('Gamma')).toBeInTheDocument()
+    expect(within(preds).getByText(/lag 2 hari kerja/)).toBeInTheDocument()
+
+    // Siklus ditolak server: pesan tampil di panel.
+    await u.type(within(panel).getByLabelText('Tambah predecessor'), 'krit')
+    await u.click(within(panel).getByRole('button', { name: 'Tambahkan Kritis sebagai predecessor' }))
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('membentuk siklus')
+
+    await u.click(within(panel).getByRole('button', { name: 'Hapus dependensi dari Alpha' }))
+    await waitFor(() => expect(within(preds).queryByText('Alpha')).not.toBeInTheDocument())
+    // Daftar dependensi dan jadwal dimuat ulang setelah perubahan.
+    expect(calls.filter((c) => c.path === '/boards/b1/schedule').length).toBeGreaterThan(1)
+
+    await u.keyboard('[Escape]')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(document.activeElement).toHaveAccessibleName(/^Beta:/))
+  })
+
+  it('item hanya-baca: panel dependensi tanpa kontrol ubah', async () => {
+    setup()
+    const u = userEvent.setup()
+    await bar(/^<img/)
+    await u.click(screen.getByRole('button', { name: `Dependensi ${XSS}` }))
+    const panel = await screen.findByRole('dialog', { name: `Dependensi ${XSS}` })
+    expect(within(panel).getByText('Anda tidak berhak mengubah dependensi item ini.')).toBeInTheDocument()
+    expect(within(panel).queryByLabelText('Tambah predecessor')).not.toBeInTheDocument()
   })
 })

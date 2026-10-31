@@ -1,4 +1,5 @@
 import type { Column, Item } from '../../api/types'
+import { DependencyCellText } from '../deps/DependencyContext'
 import {
   asNumber,
   asString,
@@ -104,7 +105,7 @@ export function CellDisplay({ col, item, names }: { col: Column; item: Item; nam
         </span>
       )
     case 'dependency':
-      return <span className="px-d flex h-full items-center text-muted-foreground">—</span>
+      return <DependencyCellText item={item} />
     default:
       return <span className="px-d flex h-full items-center truncate">{valueText(col, item, names)}</span>
   }

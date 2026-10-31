@@ -30,6 +30,9 @@ type Item struct {
 	// BisaUbah dan BisaHapus adalah hak pengguna yang meminta atas item ini.
 	BisaUbah  bool `json:"bisa_ubah"`
 	BisaHapus bool `json:"bisa_hapus"`
+	// GeserOtomatis hanya diisi respons ubah nilai: successor yang ikut
+	// digeser oleh perubahan timeline utama.
+	GeserOtomatis []ShiftedItem `json:"geser_otomatis,omitempty"`
 }
 
 // ItemPage adalah satu halaman item, urut id (waktu pembuatan).
@@ -318,8 +321,19 @@ func targetPosition(ctx context.Context, q *dbgen.Queries, id, groupID uuid.UUID
 
 // SetValue mengisi atau menghapus (nilai null) satu sel item.
 func (s *Service) SetValue(ctx context.Context, actor auth.Principal, itemID, columnID uuid.UUID, nilai json.RawMessage, meta auth.RequestMeta) (Item, error) {
+	var shifts []ShiftedItem
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		q := s.q.WithTx(tx)
+		if s.cascade != nil {
+			// Kolom timeline dapat menggeser successor: kunci board lebih dulu.
+			// Kecocokan board kolom dan item diperiksa di bawah.
+			c, err := q.GetColumnWithProject(ctx, columnID)
+			if err == nil && ColumnType(c.BoardColumn.Tipe) == TypeTimeline {
+				if err := s.cascade.LockBoard(ctx, q, c.BoardColumn.BoardID); err != nil {
+					return err
+				}
+			}
+		}
 		it, projectID, err := itemForWrite(ctx, q, actor, itemID, false)
 		if err != nil {
 			return err
@@ -375,14 +389,22 @@ func (s *Service) SetValue(ctx context.Context, actor auth.Principal, itemID, co
 		if err := q.TouchItem(ctx, itemID); err != nil {
 			return fmt.Errorf("perbarui item: %w", err)
 		}
-		return record(ctx, q, actor, meta, "item", itemID, "ubah_nilai",
+		if err := record(ctx, q, actor, meta, "item", itemID, "ubah_nilai",
 			map[string]any{"column_id": columnID, "tipe": tipe, "nilai": before},
-			map[string]any{"column_id": columnID, "tipe": tipe, "nilai": after})
+			map[string]any{"column_id": columnID, "tipe": tipe, "nilai": after}); err != nil {
+			return err
+		}
+		if s.cascade != nil && tipe == TypeTimeline {
+			shifts, err = s.cascade.AfterTimelineChange(ctx, q, actor, meta, it, columnID)
+		}
+		return err
 	})
 	if err != nil {
 		return Item{}, err
 	}
-	return s.GetItem(ctx, actor, itemID)
+	out, err := s.GetItem(ctx, actor, itemID)
+	out.GeserOtomatis = shifts
+	return out, err
 }
 
 // DeleteItem menghapus lunak item.

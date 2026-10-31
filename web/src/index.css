@@ -163,6 +163,10 @@
   --gantt-arrow-gap: 8px;
   --gantt-arrow-w: 1.5px;
   --gantt-today-w: 2px;
+
+  /* Panel dependensi: lebar panel dan isian lag. */
+  --dep-panel-w: 22rem;
+  --dep-lag-w: 5rem;
 }
 
 :root[data-density="normal"] {
@@ -329,6 +333,12 @@ body {
 .gantt-bar {
   top: calc((var(--density-row) - var(--gantt-bar-h)) / 2);
   height: var(--gantt-bar-h);
+}
+
+/* Item dijadwalkan mulai sebelum predecessor selesai (melanggar_fs dari backend). */
+.gantt-bar[data-violates] {
+  outline: var(--focus-ring-w) dashed var(--destructive);
+  outline-offset: var(--line-w);
 }
 
 .gantt-handle {
