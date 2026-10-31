@@ -16,6 +16,7 @@ import {
   type UserSummary,
 } from '../api/types'
 import { Alert, Button, Loading, Panel, SelectField, TextField } from '../components/ui'
+import { BudgetPanel } from '../dashboard/BudgetPanel'
 import { DASHBOARD_KEY, PORTFOLIOS_KEY, usePortfolios } from '../portfolio/queries'
 import { NotFoundPage } from './NotFoundPage'
 import { PROJECTS_KEY } from './ProjectsPage'
@@ -323,6 +324,7 @@ export function ProjectPage() {
       </div>
       {canManage && <ProjectSettings key={p.diubah_pada} project={p} />}
       <BoardsPanel project={p} canManage={canManage} />
+      <BudgetPanel projectId={p.id} />
       <MembersPanel project={p} canManage={canManage} />
     </div>
   )

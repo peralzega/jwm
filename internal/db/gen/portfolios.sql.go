@@ -18,7 +18,7 @@ UPDATE projects
 SET status_manual = NULL, status_manual_alasan = NULL, status_manual_oleh = NULL,
     status_manual_pada = NULL, diubah_pada = now()
 WHERE id = $1
-RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
+RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
 `
 
 func (q *Queries) ClearProjectManualStatus(ctx context.Context, id uuid.UUID) (Project, error) {
@@ -33,7 +33,6 @@ func (q *Queries) ClearProjectManualStatus(ctx context.Context, id uuid.UUID) (P
 		&i.Selesai,
 		&i.Prioritas,
 		&i.StatusManual,
-		&i.Anggaran,
 		&i.DibuatOleh,
 		&i.DibuatPada,
 		&i.DiubahPada,
@@ -143,16 +142,17 @@ func (q *Queries) ListBoardsOfProjects(ctx context.Context, projectIds []uuid.UU
 }
 
 const listColumnsOfBoards = `-- name: ListColumnsOfBoards :many
-SELECT id, board_id, tipe FROM board_columns
+SELECT id, board_id, tipe, konfigurasi_json FROM board_columns
 WHERE board_id = ANY ($1::uuid[]) AND dihapus_pada IS NULL
   AND tipe IN ('status', 'progress', 'person', 'timeline')
 ORDER BY board_id, urutan, id
 `
 
 type ListColumnsOfBoardsRow struct {
-	ID      uuid.UUID
-	BoardID uuid.UUID
-	Tipe    string
+	ID              uuid.UUID
+	BoardID         uuid.UUID
+	Tipe            string
+	KonfigurasiJson []byte
 }
 
 func (q *Queries) ListColumnsOfBoards(ctx context.Context, boardIds []uuid.UUID) ([]ListColumnsOfBoardsRow, error) {
@@ -164,7 +164,12 @@ func (q *Queries) ListColumnsOfBoards(ctx context.Context, boardIds []uuid.UUID)
 	var items []ListColumnsOfBoardsRow
 	for rows.Next() {
 		var i ListColumnsOfBoardsRow
-		if err := rows.Scan(&i.ID, &i.BoardID, &i.Tipe); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.BoardID,
+			&i.Tipe,
+			&i.KonfigurasiJson,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -281,6 +286,92 @@ func (q *Queries) ListDependenciesOfBoards(ctx context.Context, boardIds []uuid.
 			&i.SuccessorID,
 			&i.LagHari,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDoneTransitions = `-- name: ListDoneTransitions :many
+SELECT i.id AS item_id, max(a.waktu)::timestamptz AS waktu
+FROM items i
+JOIN audit_log a ON a.entitas = 'item' AND a.entitas_id = i.id::text
+WHERE i.board_id = ANY ($1::uuid[]) AND i.dihapus_pada IS NULL
+  AND a.aksi = 'ubah_nilai' AND a.waktu >= $2
+  AND a.sesudah ->> 'tipe' = 'status' AND a.sesudah ->> 'nilai' = 'done'
+  AND (a.sesudah ->> 'column_id')::uuid = ANY ($3::uuid[])
+GROUP BY i.id
+`
+
+type ListDoneTransitionsParams struct {
+	BoardIds   []uuid.UUID
+	Sejak      time.Time
+	StatusCols []uuid.UUID
+}
+
+type ListDoneTransitionsRow struct {
+	ItemID uuid.UUID
+	Waktu  time.Time
+}
+
+// Waktu terakhir setiap item berpindah ke status "done" (pada kolom status
+// terpilih) sejak @sejak, dari audit_log.
+func (q *Queries) ListDoneTransitions(ctx context.Context, arg ListDoneTransitionsParams) ([]ListDoneTransitionsRow, error) {
+	rows, err := q.db.Query(ctx, listDoneTransitions, arg.BoardIds, arg.Sejak, arg.StatusCols)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDoneTransitionsRow
+	for rows.Next() {
+		var i ListDoneTransitionsRow
+		if err := rows.Scan(&i.ItemID, &i.Waktu); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItemAssignees = `-- name: ListItemAssignees :many
+SELECT i.id AS item_id, u.id AS user_id, u.nama
+FROM items i
+JOIN item_values v ON v.item_id = i.id AND v.column_id = ANY ($1::uuid[])
+CROSS JOIN LATERAL jsonb_array_elements_text(
+    CASE WHEN jsonb_typeof(v.nilai_json) = 'array' THEN v.nilai_json ELSE '[]'::jsonb END) AS e (uid)
+JOIN users u ON u.id::text = e.uid
+WHERE i.board_id = ANY ($2::uuid[]) AND i.dihapus_pada IS NULL
+`
+
+type ListItemAssigneesParams struct {
+	PersonCols []uuid.UUID
+	BoardIds   []uuid.UUID
+}
+
+type ListItemAssigneesRow struct {
+	ItemID uuid.UUID
+	UserID uuid.UUID
+	Nama   string
+}
+
+// Pasangan (item, penanggung jawab) dari kolom person terpilih tiap board.
+func (q *Queries) ListItemAssignees(ctx context.Context, arg ListItemAssigneesParams) ([]ListItemAssigneesRow, error) {
+	rows, err := q.db.Query(ctx, listItemAssignees, arg.PersonCols, arg.BoardIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListItemAssigneesRow
+	for rows.Next() {
+		var i ListItemAssigneesRow
+		if err := rows.Scan(&i.ItemID, &i.UserID, &i.Nama); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -429,7 +520,7 @@ UPDATE projects
 SET status_manual = $1, status_manual_alasan = $2, status_manual_oleh = $3,
     status_manual_pada = now(), diubah_pada = now()
 WHERE id = $4
-RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
+RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
 `
 
 type SetProjectManualStatusParams struct {
@@ -456,7 +547,6 @@ func (q *Queries) SetProjectManualStatus(ctx context.Context, arg SetProjectManu
 		&i.Selesai,
 		&i.Prioritas,
 		&i.StatusManual,
-		&i.Anggaran,
 		&i.DibuatOleh,
 		&i.DibuatPada,
 		&i.DiubahPada,

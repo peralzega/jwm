@@ -300,6 +300,96 @@ paths:
         "204": { description: Dihapus }
         "403": { description: Bukan Admin atau PMO }
         "404": { description: not_found }
+  /dashboard:
+    get:
+      summary: Panel dasbor (sebaran status, beban kerja, tren penyelesaian, keuangan)
+      description: Satu proyek (project) atau semua proyek aktif yang terlihat. Lihat docs/SPEC.md M6.
+      parameters:
+        - { name: project, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardPanels" }
+        "400": { description: Parameter project tidak valid }
+        "404": { description: Proyek tidak ada, tidak terlihat, atau diarsipkan }
+  /stream:
+    get:
+      summary: Pembaruan langsung (Server-Sent Events)
+      description: |
+        Event "berubah" dengan data {"project_id","jenis"} (jenis: item,
+        dependensi, board, anggaran, proyek), tanpa isi data. Event "tutup"
+        dikirim saat umur koneksi (5 menit) habis atau server berhenti; klien
+        EventSource menyambung ulang. Komentar ping tiap 25 detik; sesi dan hak
+        diperiksa ulang saat itu. Maksimal 5 koneksi per pengguna.
+      parameters:
+        - { name: project, in: query, description: Tanpa parameter berarti semua proyek aktif yang terlihat, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Stream text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "400": { description: Parameter project tidak valid }
+        "401": { description: Belum masuk }
+        "404": { description: Proyek tidak dapat dibaca }
+        "429": { description: too_many_streams }
+  /projects/{id}/budget:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectID" }
+    get:
+      summary: Entri dan total keuangan proyek (semua anggota proyek)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Budget" }
+        "404": { description: not_found }
+    post:
+      summary: Tambah entri anggaran atau realisasi (PMO atau Project Manager proyek)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetInput" }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { type: object, properties: { id: { type: string, format: uuid } } }
+        "403": { description: Bukan PMO atau Project Manager proyek }
+        "404": { description: not_found }
+        "409": { description: project_archived }
+        "422": { description: validation }
+  /budget-entries/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Ubah entri keuangan (PMO atau Project Manager proyek)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BudgetInput" }
+      responses:
+        "204": { description: Diubah }
+        "403": { description: Bukan PMO atau Project Manager proyek }
+        "404": { description: not_found }
+        "409": { description: project_archived }
+        "422": { description: validation }
+    delete:
+      summary: Hapus entri keuangan (PMO atau Project Manager proyek)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "403": { description: Bukan PMO atau Project Manager proyek }
+        "404": { description: not_found }
+        "409": { description: project_archived }
   /portfolio:
     get:
       summary: Dasbor portofolio (progres, prioritas, health) untuk proyek aktif yang dapat dilihat
@@ -1203,6 +1293,84 @@ components:
             properties:
               kode: { $ref: "#/components/schemas/RiskRule" }
               pesan: { type: string }
+    DashboardPanels:
+      type: object
+      properties:
+        project_id: { type: [string, "null"], format: uuid }
+        hari_ini: { type: string, format: date }
+        jumlah_item: { type: integer }
+        status:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              warna: { type: string }
+              jumlah: { type: integer }
+        tanpa_status: { type: integer }
+        beban:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: string, format: uuid }
+              nama: { type: string }
+              item_terbuka: { type: integer }
+              hari_kerja: { type: integer }
+              terlambat: { type: integer }
+        belum_ditugaskan: { type: integer }
+        tren:
+          type: array
+          description: 12 minggu, mulai Senin
+          items:
+            type: object
+            properties:
+              minggu_mulai: { type: string, format: date }
+              selesai: { type: integer }
+        keuangan:
+          type: array
+          items:
+            type: object
+            properties:
+              project_id: { type: string, format: uuid }
+              nama: { type: string }
+              anggaran: { type: string, description: Desimal }
+              realisasi: { type: string }
+              sisa: { type: string, description: Boleh negatif }
+              jumlah_entri: { type: integer }
+    BudgetInput:
+      type: object
+      additionalProperties: false
+      required: [tanggal, jenis, jumlah]
+      properties:
+        tanggal: { type: string, format: date }
+        jenis: { type: string, enum: [anggaran, realisasi] }
+        jumlah: { type: string, pattern: '^\d{1,16}(\.\d{1,2})?$', description: "Positif, tanpa pemisah ribuan" }
+        keterangan: { type: string, maxLength: 500 }
+    Budget:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              project_id: { type: string, format: uuid }
+              tanggal: { type: string, format: date }
+              jenis: { type: string, enum: [anggaran, realisasi] }
+              jumlah: { type: string }
+              keterangan: { type: string }
+              dibuat_oleh_nama: { type: string }
+              dibuat_pada: { type: string, format: date-time }
+              diubah_pada: { type: string, format: date-time }
+        total:
+          type: object
+          properties:
+            anggaran: { type: string }
+            realisasi: { type: string }
+            sisa: { type: string }
+        bisa_ubah: { type: boolean, description: Pelaku boleh menambah, mengubah, menghapus }
     ColumnType:
       type: string
       enum: [text, status, person, date, timeline, number, progress, priority, dependency]

@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { CalendarPage } from './pages/admin/CalendarPage'
 import { UsersPage } from './pages/admin/UsersPage'
 import { BoardPage } from './pages/BoardPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -23,6 +24,7 @@ export const routes: RouteObject[] = [
         children: [
           { path: '/', element: <ProjectsPage /> },
           { path: '/portofolio', element: <PortfolioPage /> },
+          { path: '/dasbor', element: <DashboardPage /> },
           { path: '/proyek/:projectId', element: <ProjectPage /> },
           { path: '/board/:boardId', element: <BoardPage /> },
           {

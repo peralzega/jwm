@@ -16,6 +16,7 @@ import (
 	"jwm/internal/config"
 	"jwm/internal/db"
 	"jwm/internal/project"
+	"jwm/internal/realtime"
 	"jwm/internal/report"
 	"jwm/internal/schedule"
 	"jwm/internal/server"
@@ -58,6 +59,11 @@ func run(log *slog.Logger) error {
 
 	go cleanupSessions(ctx, authSvc, log)
 
+	// ASSUMPTION: 5 koneksi pembaruan langsung per pengguna cukup (beberapa tab).
+	hub := realtime.NewHub(5)
+	go realtime.Listen(ctx, pool, hub, log)
+
+	// srv dibuat di bawah; stream SSE ditutup saat shutdown.
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: server.NewRouter(server.Deps{
@@ -68,13 +74,15 @@ func run(log *slog.Logger) error {
 				DueDays: cfg.RiskDueDays, DueProgress: cfg.RiskDueProgress, YellowPct: cfg.HealthYellowPct,
 				RedPct: cfg.HealthRedPct, BehindPoints: cfg.HealthBehindPoints,
 			}),
-			Log: log,
+			Realtime: hub,
+			Log:      log,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	srv.RegisterOnShutdown(hub.Shutdown)
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("server berjalan", "addr", cfg.HTTPAddr, "env", cfg.Env)
