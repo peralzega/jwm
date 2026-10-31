@@ -27,10 +27,11 @@ const (
 	CondInGroup      = "di_grup"
 )
 
-// Jenis aksi (M7a). Email dan webhook menyusul di M7b.
+// Jenis aksi. Tidak ada aksi email (keputusan revisi M7).
 const (
 	ActionMoveGroup = "pindah_grup"
 	ActionSetValue  = "ubah_kolom"
+	ActionWebhook   = "panggil_webhook"
 )
 
 // Trigger adalah pemicu aturan.
@@ -59,6 +60,8 @@ type Action struct {
 	GroupID  *uuid.UUID      `json:"group_id,omitempty"`
 	ColumnID *uuid.UUID      `json:"column_id,omitempty"`
 	Nilai    json.RawMessage `json:"nilai,omitempty"`
+	// URL tujuan aksi panggil_webhook (https, host di daftar izin).
+	URL string `json:"url,omitempty"`
 }
 
 // Event adalah satu kejadian dari antrean.

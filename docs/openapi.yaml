@@ -387,6 +387,48 @@ paths:
                         pesan: { type: string }
                         waktu: { type: string, format: date-time }
         "404": { description: not_found }
+  /automations/{id}/webhooks:
+    get:
+      summary: 100 kiriman webhook terbaru aturan (hak baca board)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        url: { type: string }
+                        status: { type: string, enum: [menunggu, terkirim, gagal] }
+                        percobaan: { type: integer }
+                        galat: { type: string }
+                        kode_http: { type: [integer, "null"] }
+                        dibuat_pada: { type: string, format: date-time }
+                        selesai_pada: { type: [string, "null"], format: date-time }
+        "404": { description: not_found }
+  /automations/{id}/webhook-secret:
+    post:
+      summary: Ganti rahasia HMAC webhook aturan (manager efektif); rahasia baru ditampilkan sekali
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: "#/components/parameters/CSRF" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { webhook_rahasia: { type: string } } }
+        "403": { description: Bukan manager efektif }
+        "404": { description: not_found }
+        "422": { description: Aturan tidak memiliki aksi webhook }
   /dashboard:
     get:
       summary: Panel dasbor (sebaran status, beban kerja, tren penyelesaian, keuangan)
@@ -1446,10 +1488,11 @@ components:
       type: object
       required: [jenis]
       properties:
-        jenis: { type: string, enum: [pindah_grup, ubah_kolom] }
+        jenis: { type: string, enum: [pindah_grup, ubah_kolom, panggil_webhook] }
         group_id: { type: string, format: uuid }
         column_id: { type: string, format: uuid, description: "status, priority, person, text, number, progress, date" }
         nilai: { description: "Nilai kolom; null = kosongkan" }
+        url: { type: string, maxLength: 2000, description: "panggil_webhook: https:// ke host di WEBHOOK_ALLOWED_HOSTS" }
     AutomationRuleInput:
       type: object
       additionalProperties: false
@@ -1470,6 +1513,9 @@ components:
             dibuat_oleh_nama: { type: string }
             dibuat_pada: { type: string, format: date-time }
             diubah_pada: { type: string, format: date-time }
+            webhook_rahasia:
+              type: string
+              description: Hanya pada respons buat/ubah saat rahasia HMAC baru dibuat; tidak pernah dikirim lagi.
     BudgetInput:
       type: object
       additionalProperties: false

@@ -63,9 +63,14 @@ func run(log *slog.Logger) error {
 	// ASSUMPTION: 5 koneksi pembaruan langsung per pengguna cukup (beberapa tab).
 	hub := realtime.NewHub(5)
 	go realtime.Listen(ctx, pool, hub, log)
-	go automation.NewWorker(pool, log, automation.Limits{
+	webhook := automation.WebhookConfig{
+		AllowedHosts: automation.ParseAllowedHosts(cfg.WebhookAllowedHosts), BaseURL: cfg.AppBaseURL,
+	}
+	worker := automation.NewWorker(pool, log, automation.Limits{
 		MaxPerRule: cfg.AutomationMaxPerRule, MaxDepth: cfg.AutomationMaxDepth,
-	}).Run(ctx)
+	})
+	worker.Webhook = webhook
+	go worker.Run(ctx)
 
 	// srv dibuat di bawah; stream SSE ditutup saat shutdown.
 	srv := &http.Server{
@@ -79,7 +84,7 @@ func run(log *slog.Logger) error {
 				RedPct: cfg.HealthRedPct, BehindPoints: cfg.HealthBehindPoints,
 			}),
 			Realtime:   hub,
-			Automation: automation.NewService(pool),
+			Automation: automation.NewService(pool, webhook),
 			Log:        log,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

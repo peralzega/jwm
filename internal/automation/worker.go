@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -47,11 +48,17 @@ type Worker struct {
 	DueEvery time.Duration
 	// Now sumber waktu. ASSUMPTION: "hari ini" = tanggal lokal server (WIB).
 	Now func() time.Time
+	// Webhook: daftar izin host dan URL dasar tautan; Client mengirim kiriman.
+	Webhook WebhookConfig
+	Client  *http.Client
 }
 
 // NewWorker membuat worker otomasi.
 func NewWorker(pool *pgxpool.Pool, log *slog.Logger, limits Limits) *Worker {
-	return &Worker{pool: pool, q: dbgen.New(pool), log: log, limits: limits, Poll: DefaultPoll, DueEvery: DefaultDueEvery, Now: time.Now}
+	return &Worker{
+		pool: pool, q: dbgen.New(pool), log: log, limits: limits, Poll: DefaultPoll, DueEvery: DefaultDueEvery, Now: time.Now,
+		Client: NewWebhookClient(),
+	}
 }
 
 // Run memproses antrean sampai ctx selesai.
@@ -72,6 +79,9 @@ func (w *Worker) Run(ctx context.Context) {
 				w.log.Error("otomasi: penjadwal tanggal", "err", err)
 			}
 		case <-poll.C:
+			if _, err := w.DispatchWebhooks(ctx); err != nil && ctx.Err() == nil {
+				w.log.Error("otomasi: kirim webhook", "err", err)
+			}
 			// Habiskan antrean sebelum menunggu tick berikutnya.
 			for ctx.Err() == nil {
 				n, err := w.ProcessBatch(ctx)
@@ -222,7 +232,7 @@ func (w *Worker) process(ctx context.Context, tx pgx.Tx, q *dbgen.Queries, e Eve
 			}
 			continue
 		}
-		next, msg, err := w.apply(ctx, tx, item, state, m.rule, m.acts, append(append([]uuid.UUID{}, e.Rantai...), m.rule.ID))
+		next, msg, err := w.apply(ctx, tx, e, item, state, m.rule, m.acts, append(append([]uuid.UUID{}, e.Rantai...), m.rule.ID))
 		hasil := RunOK
 		if err != nil {
 			hasil, msg = RunFailed, err.Error()
@@ -248,7 +258,7 @@ func (w *Worker) logRun(ctx context.Context, q *dbgen.Queries, ruleID uuid.UUID,
 
 // apply menjalankan aksi aturan dalam savepoint. Rantai disetel agar kejadian
 // yang ditimbulkan aksi membawa jejak aturan ini (pencegahan loop).
-func (w *Worker) apply(ctx context.Context, tx pgx.Tx, item dbgen.GetItemForAutomationRow, state ItemState,
+func (w *Worker) apply(ctx context.Context, tx pgx.Tx, e Event, item dbgen.GetItemForAutomationRow, state ItemState,
 	rule dbgen.AutomationRule, acts []Action, rantai []uuid.UUID) (ItemState, string, error) {
 	sp, err := tx.Begin(ctx)
 	if err != nil {
@@ -267,7 +277,7 @@ func (w *Worker) apply(ctx context.Context, tx pgx.Tx, item dbgen.GetItemForAuto
 	origin := map[string]any{"rule_id": rule.ID, "nama": rule.Nama, "dibuat_oleh": rule.DibuatOleh}
 	var done []string
 	for i, a := range acts {
-		changed, err := w.act(ctx, q, item, &next, a, origin)
+		changed, err := w.act(ctx, q, e, rule, item, &next, a, origin)
 		if err != nil {
 			return state, "", fmt.Errorf("aksi %d: %w", i+1, err)
 		}
@@ -286,7 +296,8 @@ func (w *Worker) apply(ctx context.Context, tx pgx.Tx, item dbgen.GetItemForAuto
 
 // act menjalankan satu aksi sebagai sistem (aktor audit kosong, asal aturan
 // dicatat). Mengembalikan ringkasan perubahan, atau "" bila tidak ada perubahan.
-func (w *Worker) act(ctx context.Context, q *dbgen.Queries, item dbgen.GetItemForAutomationRow, st *ItemState, a Action, origin map[string]any) (string, error) {
+func (w *Worker) act(ctx context.Context, q *dbgen.Queries, e Event, rule dbgen.AutomationRule, item dbgen.GetItemForAutomationRow,
+	st *ItemState, a Action, origin map[string]any) (string, error) {
 	rec := func(aksi string, sebelum, sesudah map[string]any) error {
 		sesudah["otomasi"] = origin
 		return audit.Record(ctx, q, audit.Entry{
@@ -377,6 +388,9 @@ func (w *Worker) act(ctx context.Context, q *dbgen.Queries, item dbgen.GetItemFo
 			st.Values[col.BoardColumn.ID] = after
 		}
 		return fmt.Sprintf("kolom %q diubah", col.BoardColumn.Judul), nil
+
+	case ActionWebhook:
+		return w.enqueueWebhook(ctx, q, e, rule, item, a)
 	}
 	return "", fmt.Errorf("aksi %q tidak dikenal", a.Jenis)
 }
