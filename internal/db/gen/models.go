@@ -45,6 +45,19 @@ type BoardColumn struct {
 	DihapusPada     *time.Time
 }
 
+type BudgetEntry struct {
+	ID         uuid.UUID
+	ProjectID  uuid.UUID
+	Tanggal    pgtype.Date
+	Jenis      string
+	Jumlah     pgtype.Numeric
+	Keterangan string
+	DibuatOleh uuid.UUID
+	DibuatPada time.Time
+	DiubahOleh *uuid.UUID
+	DiubahPada time.Time
+}
+
 type Dependency struct {
 	ID            uuid.UUID
 	BoardID       uuid.UUID
@@ -104,7 +117,6 @@ type Project struct {
 	Selesai            pgtype.Date
 	Prioritas          string
 	StatusManual       *string
-	Anggaran           pgtype.Numeric
 	DibuatOleh         uuid.UUID
 	DibuatPada         time.Time
 	DiubahPada         time.Time

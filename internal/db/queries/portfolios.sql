@@ -62,7 +62,7 @@ WHERE d.board_id = ANY (@board_ids::uuid[])
 ORDER BY d.id;
 
 -- name: ListColumnsOfBoards :many
-SELECT id, board_id, tipe FROM board_columns
+SELECT id, board_id, tipe, konfigurasi_json FROM board_columns
 WHERE board_id = ANY (@board_ids::uuid[]) AND dihapus_pada IS NULL
   AND tipe IN ('status', 'progress', 'person', 'timeline')
 ORDER BY board_id, urutan, id;
@@ -97,3 +97,25 @@ GROUP BY i.id;
 -- name: SetDashboardWorkMem :exec
 -- Agregasi dasbor (hingga 50 ribu item) muat di memori tanpa tumpah ke disk.
 SELECT set_config('work_mem', '32MB', true);
+
+-- name: ListItemAssignees :many
+-- Pasangan (item, penanggung jawab) dari kolom person terpilih tiap board.
+SELECT i.id AS item_id, u.id AS user_id, u.nama
+FROM items i
+JOIN item_values v ON v.item_id = i.id AND v.column_id = ANY (@person_cols::uuid[])
+CROSS JOIN LATERAL jsonb_array_elements_text(
+    CASE WHEN jsonb_typeof(v.nilai_json) = 'array' THEN v.nilai_json ELSE '[]'::jsonb END) AS e (uid)
+JOIN users u ON u.id::text = e.uid
+WHERE i.board_id = ANY (@board_ids::uuid[]) AND i.dihapus_pada IS NULL;
+
+-- name: ListDoneTransitions :many
+-- Waktu terakhir setiap item berpindah ke status "done" (pada kolom status
+-- terpilih) sejak @sejak, dari audit_log.
+SELECT i.id AS item_id, max(a.waktu)::timestamptz AS waktu
+FROM items i
+JOIN audit_log a ON a.entitas = 'item' AND a.entitas_id = i.id::text
+WHERE i.board_id = ANY (@board_ids::uuid[]) AND i.dihapus_pada IS NULL
+  AND a.aksi = 'ubah_nilai' AND a.waktu >= @sejak
+  AND a.sesudah ->> 'tipe' = 'status' AND a.sesudah ->> 'nilai' = 'done'
+  AND (a.sesudah ->> 'column_id')::uuid = ANY (@status_cols::uuid[])
+GROUP BY i.id;

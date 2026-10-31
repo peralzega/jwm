@@ -241,17 +241,11 @@ func (s *Service) evaluate(ctx context.Context, rows []dbgen.ListDashboardProjec
 	for i, r := range rows {
 		projectIDs[i] = r.ID
 	}
-	// Satu snapshot untuk semua query, dan work_mem cukup agar agregasi tidak
-	// tumpah ke disk (lihat SetDashboardWorkMem).
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	q, done, err := s.readTx(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("mulai transaksi: %w", err)
+		return nil, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := s.q.WithTx(tx)
-	if err := q.SetDashboardWorkMem(ctx); err != nil {
-		return nil, fmt.Errorf("atur work_mem: %w", err)
-	}
+	defer done()
 	boards, err := q.ListBoardsOfProjects(ctx, projectIDs)
 	if err != nil {
 		return nil, fmt.Errorf("daftar board: %w", err)
@@ -270,27 +264,9 @@ func (s *Service) evaluate(ctx context.Context, rows []dbgen.ListDashboardProjec
 	if err != nil {
 		return nil, fmt.Errorf("daftar kolom: %w", err)
 	}
-	picked := map[[2]string]bool{}
-	hasPerson := map[uuid.UUID]bool{}
-	var p dbgen.ListPortfolioItemsParams
-	for _, c := range cols {
-		key := [2]string{c.BoardID.String(), c.Tipe}
-		if picked[key] {
-			continue
-		}
-		picked[key] = true
-		switch c.Tipe {
-		case "status":
-			p.StatusCols = append(p.StatusCols, c.ID)
-		case "progress":
-			p.ProgressCols = append(p.ProgressCols, c.ID)
-		case "person":
-			p.PersonCols = append(p.PersonCols, c.ID)
-			hasPerson[c.BoardID] = true
-		case "timeline":
-			p.TimelineCols = append(p.TimelineCols, c.ID)
-		}
-	}
+	pk := pickColumns(cols)
+	hasPerson := pk.hasPerson
+	p := pk.params
 	p.BoardIds = boardIDs
 	rows2, err := q.ListPortfolioItems(ctx, p)
 	if err != nil {
@@ -381,4 +357,53 @@ func spanOf(mulai, selesai string) *schedule.Span {
 		return nil
 	}
 	return &schedule.Span{Start: s, End: e}
+}
+
+// readTx membuka transaksi read-only (satu snapshot untuk semua query dasbor)
+// dengan work_mem cukup agar agregasi tidak tumpah ke disk.
+func (s *Service) readTx(ctx context.Context) (*dbgen.Queries, func(), error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, nil, fmt.Errorf("mulai transaksi: %w", err)
+	}
+	done := func() { _ = tx.Rollback(ctx) }
+	q := s.q.WithTx(tx)
+	if err := q.SetDashboardWorkMem(ctx); err != nil {
+		done()
+		return nil, nil, fmt.Errorf("atur work_mem: %w", err)
+	}
+	return q, done, nil
+}
+
+// picks adalah kolom pertama tiap tipe per board (urutan tampilan).
+type picks struct {
+	params    dbgen.ListPortfolioItemsParams
+	hasPerson map[uuid.UUID]bool
+	// status: kolom status terpilih beserta konfigurasi labelnya.
+	status map[uuid.UUID]dbgen.ListColumnsOfBoardsRow
+}
+
+func pickColumns(cols []dbgen.ListColumnsOfBoardsRow) picks {
+	out := picks{hasPerson: map[uuid.UUID]bool{}, status: map[uuid.UUID]dbgen.ListColumnsOfBoardsRow{}}
+	seen := map[[2]string]bool{}
+	for _, c := range cols {
+		key := [2]string{c.BoardID.String(), c.Tipe}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		switch c.Tipe {
+		case "status":
+			out.params.StatusCols = append(out.params.StatusCols, c.ID)
+			out.status[c.ID] = c
+		case "progress":
+			out.params.ProgressCols = append(out.params.ProgressCols, c.ID)
+		case "person":
+			out.params.PersonCols = append(out.params.PersonCols, c.ID)
+			out.hasPerson[c.BoardID] = true
+		case "timeline":
+			out.params.TimelineCols = append(out.params.TimelineCols, c.ID)
+		}
+	}
+	return out
 }

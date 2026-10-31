@@ -87,7 +87,7 @@ password_resets(id, user_id, token_hash, kedaluwarsa, dipakai_pada)
 portfolios(id, nama, dibuat_oleh, dibuat_pada, diubah_pada)   -- nama unik
 projects(id, portfolio_id, nama, pemilik_id, mulai, selesai,
          prioritas, status_manual, status_manual_alasan, status_manual_oleh,
-         status_manual_pada, anggaran)          -- status_manual: hijau | kuning | merah
+         status_manual_pada)                    -- status_manual: hijau | kuning | merah
 project_members(project_id, user_id, peran_proyek, ditambahkan_pada,
                 ditambahkan_oleh)                 -- PK (project_id, user_id)
                                                   -- peran_proyek: manager | member | viewer
@@ -102,8 +102,8 @@ comments(id, item_id, penulis_id, isi, dibuat_pada)
 automation_rules(id, board_id, pemicu_json, kondisi_json, aksi_json, aktif)
 automation_runs(id, rule_id, item_id, hasil, waktu)
 reports(id, project_id, dibuat_pada, isi_json)
-budget_entries(id, project_id, tanggal, jenis, jumlah, keterangan,
-               dibuat_oleh)                       -- jenis: anggaran | realisasi
+budget_entries(id, project_id, tanggal, jenis, jumlah, keterangan, dibuat_oleh,
+               dibuat_pada, diubah_oleh, diubah_pada)  -- jenis: anggaran | realisasi; jumlah > 0
 audit_log(id, aktor_id, entitas, entitas_id, aksi, sebelum, sesudah, waktu)
 work_calendar(tanggal, hari_kerja, keterangan, diubah_oleh, diubah_pada)
                                                   -- menimpa pola Senin–Jumat
@@ -301,6 +301,46 @@ Penerimaan:
 - Data diperbarui lewat SSE tanpa memuat ulang halaman.
 - Ekspor panel ke PDF atau CSV.
 
+Keputusan implementasi M6:
+- **Halaman `/dasbor`, API `GET /dashboard?project=`**: lingkup satu proyek
+  atau semua proyek aktif yang terlihat (aturan visibilitas M5). Sumber kolom
+  sama dengan M5 (kolom pertama tiap tipe per board).
+  - **Sebaran status**: jumlah item per label status, digabung per judul label
+    lintas board; item tanpa nilai status dihitung terpisah.
+  - **Beban kerja**: item terbuka (bukan Done) per penanggung jawab. Item dengan
+    beberapa penanggung jawab dihitung penuh untuk masing-masing. Disertai total
+    hari kerja timeline utama, jumlah item terlambat, dan jumlah item terbuka
+    tanpa penanggung jawab.
+  - **Tren penyelesaian**: 12 minggu terakhir (mulai Senin, tanggal lokal
+    server). Dihitung dari `audit_log`: transisi terakhir ke status `done` pada
+    kolom status pertama, hanya untuk item yang saat ini Done. Item yang dibuka
+    lagi tidak dihitung, dan yang selesai berulang dihitung sekali. Item yang
+    disisipkan massal tanpa audit (data demo) tidak muncul di tren.
+- **Keuangan**: tabel `budget_entries`, jenis `anggaran` atau `realisasi`,
+  jumlah > 0 (string desimal, maksimal dua desimal, tanpa pemisah ribuan).
+  Total anggaran = jumlah entri `anggaran`; kolom lama `projects.anggaran`
+  dihapus. Sisa = anggaran − realisasi, boleh negatif.
+  - Lihat: semua anggota proyek. Tambah, ubah, hapus: PMO, atau Project Manager
+    proyek (anggota berperan manager). Admin tanpa keanggotaan manager hanya
+    melihat. **[ASUMSI]** Tafsiran harfiah "hanya PMO dan Project Manager".
+  - Proyek arsip hanya-baca. Semua perubahan diaudit (`budget_entry`).
+  - API: `GET`/`POST /projects/{id}/budget`, `PATCH`/`DELETE /budget-entries/{id}`.
+- **SSE `GET /stream?project=`**: trigger database mengirim `NOTIFY
+  jwm_berubah` untuk setiap perubahan item, nilai, dependensi, board, kolom,
+  anggaran, dan proyek; server meneruskannya sebagai event `berubah`
+  `{project_id, jenis}` tanpa isi data, sehingga klien mengambil ulang lewat
+  API biasa (hak diperiksa di sana). Event dalam 300 ms digabung.
+  - Hanya proyek yang boleh dibaca. Maksimal 5 koneksi per pengguna (429).
+  - Setiap 25 detik: komentar ping, pemeriksaan ulang sesi (tanpa
+    memperpanjang masa idle) dan hak; sesi dicabut atau hak hilang menutup
+    koneksi. Umur koneksi maksimal 5 menit; klien menyambung ulang otomatis.
+  - Koneksi stream dibebaskan dari ReadTimeout/WriteTimeout server dan ditutup
+    saat server shutdown.
+- **Ekspor**: CSV per panel dibuat di browser (pemisah titik koma, BOM UTF-8;
+  teks yang diawali `= + - @` diberi petik tunggal agar tidak dieksekusi
+  sebagai rumus). PDF lewat dialog cetak browser (`window.print()` dengan
+  stylesheet cetak), tanpa pustaka tambahan.
+
 ### M7. Otomasi no-code (Fase 4)
 Bentuk aturan: pemicu → kondisi → aksi.
 
@@ -378,6 +418,10 @@ kontrol berikut wajib.
 - Header keamanan: CSP, `X-Content-Type-Options`, `frame-ancestors`,
   `Referrer-Policy`.
 - Pembatasan laju di reverse proxy (per IP), selain pembatasan di aplikasi.
+- Reverse proxy tidak boleh menahan (buffer) respons `GET /api/v1/stream`
+  (SSE) dan batas waktu baca proxy harus lebih dari 30 detik. Server sudah
+  mengirim `X-Accel-Buffering: no` (nginx); untuk proxy lain matikan buffering
+  pada jalur itu.
 - Pertimbangkan WAF atau CDN di depan aplikasi. **[ASUMSI]** Belum dievaluasi.
 - Penguncian akun memakai penundaan progresif agar tidak mudah dipakai
   untuk mengunci akun orang lain.

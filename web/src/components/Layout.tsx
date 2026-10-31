@@ -16,7 +16,7 @@ export function Layout() {
 
   return (
     <div className="min-h-screen">
-      <header className="px-d gap-d flex items-center border-b border-line bg-surface">
+      <header className="px-d gap-d flex items-center border-b border-line bg-surface print:hidden">
         <span className="font-semibold text-primary">JWM</span>
         <nav aria-label="Navigasi utama" className="flex gap-(--space-sm)">
           <NavLink to="/" end className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
@@ -24,6 +24,9 @@ export function Layout() {
           </NavLink>
           <NavLink to="/portofolio" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
             Portofolio
+          </NavLink>
+          <NavLink to="/dasbor" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
+            Dasbor
           </NavLink>
           {user?.peran === 'admin' && (
             <>

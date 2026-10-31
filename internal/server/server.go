@@ -3,12 +3,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"jwm/internal/auth"
@@ -16,6 +18,7 @@ import (
 	"jwm/internal/config"
 	"jwm/internal/httpx"
 	"jwm/internal/project"
+	"jwm/internal/realtime"
 	"jwm/internal/report"
 	"jwm/internal/schedule"
 	"jwm/internal/user"
@@ -34,7 +37,35 @@ type Deps struct {
 	Schedule *schedule.Service
 	// Report (dasbor portofolio) boleh nil pada tes paket lain.
 	Report *report.Service
-	Log    *slog.Logger
+	// Realtime (hub SSE) boleh nil; rute /stream hanya dipasang bila diisi.
+	Realtime *realtime.Hub
+	// StreamKeepAlive dan StreamMaxAge: nol berarti bawaan paket realtime (untuk tes).
+	StreamKeepAlive time.Duration
+	StreamMaxAge    time.Duration
+	Log             *slog.Logger
+}
+
+// streamScope: satu proyek yang boleh dibaca (404 bila tidak), atau semua
+// proyek aktif yang terlihat pelaku.
+func streamScope(svc *project.Service) realtime.ScopeFunc {
+	return func(ctx context.Context, actor auth.Principal, pid *uuid.UUID) ([]uuid.UUID, error) {
+		if pid != nil {
+			p, err := svc.Get(ctx, actor, *pid)
+			if err != nil {
+				return nil, err
+			}
+			return []uuid.UUID{p.ID}, nil
+		}
+		list, err := svc.List(ctx, actor, false)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]uuid.UUID, len(list))
+		for i, p := range list {
+			ids[i] = p.ID
+		}
+		return ids, nil
+	}
 }
 
 // NewRouter membangun handler HTTP lengkap.
@@ -75,6 +106,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Route("/users", users.Routes)
 			boards := board.NewHandler(d.Board, d.Log)
 			r.Route("/portfolios", project.NewHandler(d.Project, d.Log).PortfolioRoutes)
+			r.Route("/budget-entries", project.NewHandler(d.Project, d.Log).BudgetEntryRoutes)
 			r.Route("/projects", func(r chi.Router) {
 				project.NewHandler(d.Project, d.Log).Routes(r)
 				r.Route("/{id}/boards", boards.ProjectRoutes)
@@ -85,6 +117,20 @@ func NewRouter(d Deps) http.Handler {
 			}
 			if d.Report != nil {
 				report.NewHandler(d.Report, d.Log).Routes(r)
+			}
+			if d.Realtime != nil {
+				r.Method(http.MethodGet, "/stream", &realtime.Handler{
+					Hub: d.Realtime, Sessions: d.Auth, Scope: streamScope(d.Project), Log: d.Log,
+					KeepAlive: d.StreamKeepAlive, MaxAge: d.StreamMaxAge,
+					MapErr: func(w http.ResponseWriter, r *http.Request, err error) {
+						if errors.Is(err, project.ErrNotFound) {
+							httpx.WriteError(w, http.StatusNotFound, "not_found", err.Error())
+							return
+						}
+						d.Log.ErrorContext(r.Context(), "stream", "err", err)
+						httpx.WriteError(w, http.StatusInternalServerError, "internal", "Terjadi kesalahan internal.")
+					},
+				})
 			}
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(httpx.AllowCIDRs(d.Config.AdminAllowedCIDRs))

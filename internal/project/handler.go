@@ -39,7 +39,84 @@ func (h *Handler) Routes(r chi.Router) {
 		r.Delete("/members/{userId}", h.removeMember)
 		r.Put("/status-manual", h.setManualStatus)
 		r.Delete("/status-manual", h.clearManualStatus)
+		r.Get("/budget", h.budget)
+		r.Post("/budget", h.createBudgetEntry)
 	})
+}
+
+// BudgetEntryRoutes dipasang di /api/v1/budget-entries.
+func (h *Handler) BudgetEntryRoutes(r chi.Router) {
+	r.Patch("/{id}", h.updateBudgetEntry)
+	r.Delete("/{id}", h.deleteBudgetEntry)
+}
+
+type budgetBody struct {
+	Tanggal    string `json:"tanggal"`
+	Jenis      string `json:"jenis"`
+	Jumlah     string `json:"jumlah"`
+	Keterangan string `json:"keterangan"`
+}
+
+func (h *Handler) budget(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	actor, _ := actorAndMeta(r)
+	out, err := h.svc.Budget(r.Context(), actor, id)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) createBudgetEntry(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	var in budgetBody
+	if !decode(w, r, &in) {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	entryID, err := h.svc.CreateBudgetEntry(r.Context(), actor, id, BudgetInput(in), meta)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"id": entryID})
+}
+
+func (h *Handler) updateBudgetEntry(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	var in budgetBody
+	if !decode(w, r, &in) {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	if err := h.svc.UpdateBudgetEntry(r.Context(), actor, id, BudgetInput(in), meta); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deleteBudgetEntry(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	if err := h.svc.DeleteBudgetEntry(r.Context(), actor, id, meta); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // PortfolioRoutes dipasang di /api/v1/portfolios.
@@ -163,6 +240,11 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, ErrBudgetNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, ErrInvalidBudgetDay), errors.Is(err, ErrInvalidBudgetKind), errors.Is(err, ErrInvalidAmount),
+		errors.Is(err, ErrInvalidBudgetNote):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation", err.Error())
 	case errors.Is(err, ErrPortfolioNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrPortfolioExists):

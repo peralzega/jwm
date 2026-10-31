@@ -170,6 +170,10 @@
 
   /* Dasbor portofolio: bilah progres dan indentasi daftar alasan (rem ikut font kepadatan). */
   --progress-bar-w: 6rem;
+
+  /* Dasbor M6: tinggi grafik tren dan lebar label bilah. */
+  --chart-h: 8rem;
+  --chart-label-w: 9rem;
   --list-indent: 1rem;
 }
 

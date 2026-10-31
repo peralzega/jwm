@@ -130,6 +130,22 @@ func (q *Queries) GetSessionWithUser(ctx context.Context, tokenHash []byte) (Get
 	return i, err
 }
 
+const sessionStillValid = `-- name: SessionStillValid :one
+SELECT EXISTS (
+    SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id
+    WHERE s.id = $1 AND s.kedaluwarsa > now() AND s.kedaluwarsa_mutlak > now() AND u.aktif
+)::boolean
+`
+
+// Sesi masih berlaku dan pengguna aktif, tanpa memperpanjang masa idle
+// (dipakai koneksi SSE yang berumur panjang).
+func (q *Queries) SessionStillValid(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, sessionStillValid, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const touchSession = `-- name: TouchSession :exec
 UPDATE sessions
 SET terakhir_aktif = now(), kedaluwarsa = least($1::timestamptz, kedaluwarsa_mutlak)

@@ -298,3 +298,66 @@ export interface Page<T> {
   items: T[]
   kursor_berikut?: string | null
 }
+
+export interface StatusSlice {
+  label: string
+  warna: string
+  jumlah: number
+}
+
+export interface Workload {
+  user_id: string
+  nama: string
+  item_terbuka: number
+  /** Jumlah durasi hari kerja timeline utama item terbuka. */
+  hari_kerja: number
+  terlambat: number
+}
+
+export interface WeekCount {
+  /** Senin awal minggu, YYYY-MM-DD. */
+  minggu_mulai: string
+  selesai: number
+}
+
+/** Jumlah uang berupa string desimal (mis. "1500000.50") agar tidak kehilangan presisi. */
+export interface Finance {
+  project_id: string
+  nama: string
+  anggaran: string
+  realisasi: string
+  sisa: string
+  jumlah_entri: number
+}
+
+export interface DashboardPanels {
+  project_id: string | null
+  hari_ini: string
+  jumlah_item: number
+  status: StatusSlice[]
+  tanpa_status: number
+  beban: Workload[]
+  belum_ditugaskan: number
+  tren: WeekCount[]
+  keuangan: Finance[]
+}
+
+export type BudgetKind = 'anggaran' | 'realisasi'
+
+export interface BudgetEntry {
+  id: string
+  project_id: string
+  tanggal: string
+  jenis: BudgetKind
+  jumlah: string
+  keterangan: string
+  dibuat_oleh_nama: string
+  dibuat_pada: string
+  diubah_pada: string
+}
+
+export interface Budget {
+  items: BudgetEntry[]
+  total: { anggaran: string; realisasi: string; sisa: string }
+  bisa_ubah: boolean
+}

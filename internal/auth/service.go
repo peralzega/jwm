@@ -330,3 +330,17 @@ func (s *Service) CleanupExpiredSessions(ctx context.Context) (int64, error) {
 	}
 	return n, nil
 }
+
+// StillValid memeriksa bahwa sesi masih berlaku dan pengguna masih aktif tanpa
+// memperpanjang masa idle. Untuk koneksi panjang (SSE): sesi yang dicabut,
+// kedaluwarsa, atau pengguna yang dinonaktifkan menutup koneksi.
+func (s *Service) StillValid(ctx context.Context, p Principal) error {
+	ok, err := s.q.SessionStillValid(ctx, p.SessionID)
+	if err != nil {
+		return fmt.Errorf("periksa sesi: %w", err)
+	}
+	if !ok {
+		return ErrUnauthenticated
+	}
+	return nil
+}

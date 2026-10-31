@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -75,4 +76,19 @@ func (c *Client) Do(method, path string, body any) Resp {
 func (c *Client) Login(email, password string) Resp {
 	c.t.Helper()
 	return c.Do(http.MethodPost, "/api/v1/auth/login", map[string]string{"email": email, "password": password})
+}
+
+// Stream membuka GET berumur panjang (mis. SSE) dengan cookie klien. Pemanggil
+// membaca res.Body sendiri dan menutupnya; ctx membatalkan koneksi.
+func (c *Client) Stream(ctx context.Context, path string) *http.Response {
+	c.t.Helper()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	if err != nil {
+		c.t.Fatalf("buat permintaan: %v", err)
+	}
+	res, err := c.http.Do(req)
+	if err != nil {
+		c.t.Fatalf("buka stream: %v", err)
+	}
+	return res
 }

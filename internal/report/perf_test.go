@@ -65,4 +65,8 @@ func TestPortfolioPerformance(t *testing.T) {
 		return pmo.Do(http.MethodGet, "/api/v1/portfolio/projects/"+first+"/risks", nil)
 	})
 	t.Logf("GET /portfolio/projects/{id}/risks: median %v, maks %v", med, worst)
+	med, worst = timed(7, func() testutil.Resp { return pmo.Do(http.MethodGet, "/api/v1/dashboard", nil) })
+	t.Logf("GET /dashboard (semua proyek): median %v, maks %v", med, worst)
+	med, worst = timed(7, func() testutil.Resp { return pmo.Do(http.MethodGet, "/api/v1/dashboard?project="+first, nil) })
+	t.Logf("GET /dashboard?project= (500 item): median %v, maks %v", med, worst)
 }

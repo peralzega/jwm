@@ -29,6 +29,26 @@ func NewHandler(svc *Service, log *slog.Logger) *Handler {
 func (h *Handler) Routes(r chi.Router) {
 	r.Get("/portfolio", h.dashboard)
 	r.Get("/portfolio/projects/{id}/risks", h.risks)
+	r.Get("/dashboard", h.panels)
+}
+
+func (h *Handler) panels(w http.ResponseWriter, r *http.Request) {
+	var pid *uuid.UUID
+	if v := r.URL.Query().Get("project"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "bad_request", "Parameter project tidak valid.")
+			return
+		}
+		pid = &id
+	}
+	actor, _ := auth.PrincipalFrom(r.Context())
+	out, err := h.svc.Panels(r.Context(), actor, pid)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {

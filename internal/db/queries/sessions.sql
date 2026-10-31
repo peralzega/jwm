@@ -25,3 +25,11 @@ DELETE FROM sessions WHERE user_id = $1;
 
 -- name: DeleteExpiredSessions :execrows
 DELETE FROM sessions WHERE kedaluwarsa <= now() OR kedaluwarsa_mutlak <= now();
+
+-- name: SessionStillValid :one
+-- Sesi masih berlaku dan pengguna aktif, tanpa memperpanjang masa idle
+-- (dipakai koneksi SSE yang berumur panjang).
+SELECT EXISTS (
+    SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id
+    WHERE s.id = $1 AND s.kedaluwarsa > now() AND s.kedaluwarsa_mutlak > now() AND u.aktif
+)::boolean;
