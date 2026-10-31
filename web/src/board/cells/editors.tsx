@@ -13,6 +13,7 @@ import {
   PRIORITY_STYLE,
   type Parsed,
 } from '../format'
+import { DependencyEditor } from '../deps/DependencyEditor'
 import { OptionList, Popover, type Option } from './Popover'
 
 /** Arah perpindahan fokus setelah menyimpan. */
@@ -59,7 +60,7 @@ export function CellEditor(props: EditorProps) {
     case 'timeline':
       return <TimelineEditor {...props} col={col} />
     case 'dependency':
-      return null
+      return <DependencyEditor item={props.item} anchor={props.anchor} onClose={props.onCancel} />
   }
 }
 

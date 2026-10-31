@@ -145,8 +145,57 @@ export interface Item {
   nilai: Record<string, unknown>
   bisa_ubah: boolean
   bisa_hapus: boolean
-  /** Penanda jalur kritis dari perhitungan CPM backend (M4); belum dikirim API pada M3. */
-  kritis?: boolean
+  /** Hanya pada respons ubah nilai: successor yang ikut digeser otomatis. */
+  geser_otomatis?: ShiftedItem[]
+}
+
+export interface ShiftedItem {
+  id: string
+  judul: string
+  mulai: string
+  selesai: string
+  predecessor_id: string
+}
+
+/** Hasil CPM satu item (GET /boards/{id}/schedule). Tanggal YYYY-MM-DD. */
+export interface ItemSchedule {
+  item_id: string
+  es: string | null
+  ef: string | null
+  ls: string | null
+  lf: string | null
+  /** Slack dalam hari kerja. */
+  slack: number | null
+  kritis: boolean
+  melanggar_fs: boolean
+  tanpa_jadwal: boolean
+}
+
+export interface ScheduleWarning {
+  kode: 'kalender_kosong'
+  tahun?: number
+  pesan: string
+}
+
+export interface ScheduleView {
+  kolom_id: string
+  kolom_utama: boolean
+  selesai_proyek: string | null
+  items: ItemSchedule[]
+  dependensi_dilanggar: string[]
+  peringatan: ScheduleWarning[]
+}
+
+export interface CalendarDay {
+  tanggal: string
+  hari_kerja: boolean
+  keterangan: string
+}
+
+export interface CalendarYear {
+  tahun: number
+  items: CalendarDay[]
+  tahun_terisi: number[]
 }
 
 export interface Dependency {

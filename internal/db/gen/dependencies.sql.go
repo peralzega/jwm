@@ -143,6 +143,46 @@ func (q *Queries) ListDependencies(ctx context.Context, boardID uuid.UUID) ([]De
 	return items, nil
 }
 
+const listTimelineValues = `-- name: ListTimelineValues :many
+SELECT i.id, i.judul, v.nilai_json
+FROM items i
+LEFT JOIN item_values v ON v.item_id = i.id AND v.column_id = $1
+WHERE i.board_id = $2 AND i.dihapus_pada IS NULL
+ORDER BY i.id
+`
+
+type ListTimelineValuesParams struct {
+	ColumnID uuid.UUID
+	BoardID  uuid.UUID
+}
+
+type ListTimelineValuesRow struct {
+	ID        uuid.UUID
+	Judul     string
+	NilaiJson []byte
+}
+
+// Nilai satu kolom timeline untuk semua item aktif di board (CPM dan pergeseran).
+func (q *Queries) ListTimelineValues(ctx context.Context, arg ListTimelineValuesParams) ([]ListTimelineValuesRow, error) {
+	rows, err := q.db.Query(ctx, listTimelineValues, arg.ColumnID, arg.BoardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTimelineValuesRow
+	for rows.Next() {
+		var i ListTimelineValuesRow
+		if err := rows.Scan(&i.ID, &i.Judul, &i.NilaiJson); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockBoardDependencies = `-- name: LockBoardDependencies :exec
 SELECT pg_advisory_xact_lock(hashtextextended('dependencies:' || $1::text, 0))
 `

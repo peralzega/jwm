@@ -46,8 +46,9 @@ var (
 
 // Service adalah logika bisnis board, kolom, grup, dan item.
 type Service struct {
-	pool *pgxpool.Pool
-	q    *dbgen.Queries
+	pool    *pgxpool.Pool
+	q       *dbgen.Queries
+	cascade Cascader
 }
 
 // NewService membuat layanan board.

@@ -95,7 +95,6 @@ function cellEditable(row: GridRow, meta: ColMeta): boolean {
   if (row.kind !== 'item') return false
   const it = row.item
   if (meta.kind === 'actions') return it.bisa_ubah || it.bisa_hapus
-  if (meta.kind === 'value' && meta.col?.tipe === 'dependency') return false
   return it.bisa_ubah
 }
 
@@ -519,7 +518,8 @@ export function BoardTable({
       return
     }
     const col = meta.kind === 'title' ? null : (meta.col ?? null)
-    if ((e.key === 'Delete' || e.key === 'Backspace') && meta.kind === 'value' && col && cellEditable(row, meta)) {
+    // Kolom dependency dikelola lewat panel dependensi, bukan nilai sel.
+    if ((e.key === 'Delete' || e.key === 'Backspace') && meta.kind === 'value' && col && col.tipe !== 'dependency' && cellEditable(row, meta)) {
       e.preventDefault()
       commit({ r: activeRow, c }, null)
       return

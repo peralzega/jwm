@@ -85,6 +85,8 @@ func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	status, code := http.StatusInternalServerError, "internal"
 	switch {
+	case errors.Is(err, ErrShiftForbidden):
+		status, code = http.StatusConflict, "shift_forbidden"
 	case errors.Is(err, ErrNotFound), errors.Is(err, project.ErrNotFound):
 		status, code = http.StatusNotFound, "not_found"
 	case errors.Is(err, project.ErrForbidden):

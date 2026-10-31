@@ -1,5 +1,5 @@
-// Package schedule mengelola dependensi antar-item. Perhitungan CPM, kalender
-// kerja, dan pergeseran otomatis successor menyusul di M4.
+// Package schedule mengelola dependensi antar-item, kalender kerja, perhitungan
+// jalur kritis (CPM), dan pergeseran otomatis successor.
 package schedule
 
 import (
@@ -22,7 +22,7 @@ import (
 const TypeFS = "FS"
 
 // Batas lag dalam hari, sama dengan CHECK di migrasi.
-// ASSUMPTION: lag negatif (lead) diizinkan; maknanya pada CPM ditetapkan di M4.
+// Lag dihitung dalam hari kerja. Lag negatif (lead) diizinkan (keputusan M4).
 const (
 	MinLag = -365
 	MaxLag = 365
@@ -179,6 +179,9 @@ func (s *Service) Delete(ctx context.Context, actor auth.Principal, id uuid.UUID
 		// Non-anggota mendapat 404, sama seperti untuk item.
 		if err := board.BoardForRead(ctx, q, actor, d.BoardID); err != nil {
 			return err
+		}
+		if err := q.LockBoardDependencies(ctx, d.BoardID.String()); err != nil {
+			return fmt.Errorf("kunci dependensi board: %w", err)
 		}
 		if _, err := lockItemsForEdit(ctx, q, actor, d.PredecessorID, d.SuccessorID); err != nil {
 			return err

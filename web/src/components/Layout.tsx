@@ -23,9 +23,14 @@ export function Layout() {
             Proyek
           </NavLink>
           {user?.peran === 'admin' && (
-            <NavLink to="/admin/pengguna" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
-              Pengguna
-            </NavLink>
+            <>
+              <NavLink to="/admin/pengguna" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
+                Pengguna
+              </NavLink>
+              <NavLink to="/admin/kalender" className={({ isActive }) => `${NAV} ${isActive ? NAV_ACTIVE : ''}`}>
+                Kalender kerja
+              </NavLink>
+            </>
           )}
         </nav>
         <div className="gap-d ml-auto flex items-center py-(--space-sm)">

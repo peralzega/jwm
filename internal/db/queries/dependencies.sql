@@ -34,3 +34,11 @@ SELECT * FROM dependencies WHERE id = $1 FOR UPDATE;
 
 -- name: DeleteDependency :exec
 DELETE FROM dependencies WHERE id = $1;
+
+-- name: ListTimelineValues :many
+-- Nilai satu kolom timeline untuk semua item aktif di board (CPM dan pergeseran).
+SELECT i.id, i.judul, v.nilai_json
+FROM items i
+LEFT JOIN item_values v ON v.item_id = i.id AND v.column_id = @column_id
+WHERE i.board_id = @board_id AND i.dihapus_pada IS NULL
+ORDER BY i.id;
