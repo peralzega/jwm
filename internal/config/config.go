@@ -32,6 +32,13 @@ type Config struct {
 	// WebDir adalah folder hasil build frontend (berisi index.html). Bila tidak
 	// ada, server hanya menyajikan API.
 	WebDir string
+
+	// Ambang aturan risiko dan health (SPEC bagian 5).
+	RiskDueDays        int
+	RiskDueProgress    int
+	HealthYellowPct    int
+	HealthRedPct       int
+	HealthBehindPoints int
 }
 
 // IsProduction bernilai true bila APP_ENV=production.
@@ -93,6 +100,12 @@ func Load(getenv func(string) string) (Config, error) {
 		AdminAllowedCIDRs:  prefixes("ADMIN_ALLOWED_CIDRS"),
 		TrustedProxies:     prefixes("TRUSTED_PROXIES"),
 		WebDir:             get("WEB_DIR", filepath.Join("web", "dist")),
+		// ASSUMPTION: ambang bawaan SPEC bagian 5; belum ada UI pengaturan pada v1.
+		RiskDueDays:        posInt("RISK_DUE_DAYS", "3"),
+		RiskDueProgress:    posInt("RISK_DUE_PROGRESS", "50"),
+		HealthYellowPct:    posInt("HEALTH_YELLOW_PCT", "10"),
+		HealthRedPct:       posInt("HEALTH_RED_PCT", "25"),
+		HealthBehindPoints: posInt("HEALTH_BEHIND_POINTS", "10"),
 	}
 
 	secure, err := strconv.ParseBool(get("SESSION_COOKIE_SECURE", "true"))
@@ -112,6 +125,12 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	if c.LockoutBase > c.LockoutMax {
 		errs = append(errs, errors.New("LOGIN_LOCKOUT_BASE tidak boleh melebihi LOGIN_LOCKOUT_MAX"))
+	}
+	if c.RiskDueProgress > 100 || c.HealthYellowPct > 100 || c.HealthRedPct > 100 || c.HealthBehindPoints > 100 {
+		errs = append(errs, errors.New("RISK_DUE_PROGRESS dan ambang HEALTH_* tidak boleh melebihi 100"))
+	}
+	if c.HealthYellowPct > c.HealthRedPct {
+		errs = append(errs, errors.New("HEALTH_YELLOW_PCT tidak boleh melebihi HEALTH_RED_PCT"))
 	}
 	return c, errors.Join(errs...)
 }

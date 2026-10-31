@@ -8,6 +8,7 @@ import { BoardPage } from './pages/BoardPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { PortfolioPage } from './pages/PortfolioPage'
 import { ProjectPage } from './pages/ProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
         element: <Layout />,
         children: [
           { path: '/', element: <ProjectsPage /> },
+          { path: '/portofolio', element: <PortfolioPage /> },
           { path: '/proyek/:projectId', element: <ProjectPage /> },
           { path: '/board/:boardId', element: <BoardPage /> },
           {

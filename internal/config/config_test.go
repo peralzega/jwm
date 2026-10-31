@@ -20,6 +20,8 @@ func TestLoadDefaults(t *testing.T) {
 	assert.Equal(t, 8*time.Hour, c.SessionIdleTTL)
 	assert.Equal(t, 5, c.LoginMaxFailures)
 	assert.Empty(t, c.AdminAllowedCIDRs, "admin default tidak dibatasi")
+	assert.Equal(t, []int{3, 50, 10, 25, 10},
+		[]int{c.RiskDueDays, c.RiskDueProgress, c.HealthYellowPct, c.HealthRedPct, c.HealthBehindPoints})
 }
 
 func TestLoadErrors(t *testing.T) {
@@ -35,6 +37,8 @@ func TestLoadErrors(t *testing.T) {
 		{"idle melebihi mutlak", map[string]string{
 			"DATABASE_URL": "x", "SESSION_IDLE_TTL": "10h", "SESSION_ABSOLUTE_TTL": "1h"}},
 		{"ambang nol", map[string]string{"DATABASE_URL": "x", "LOGIN_MAX_FAILURES": "0"}},
+		{"kuning melebihi merah", map[string]string{"DATABASE_URL": "x", "HEALTH_YELLOW_PCT": "30", "HEALTH_RED_PCT": "20"}},
+		{"persen di atas 100", map[string]string{"DATABASE_URL": "x", "RISK_DUE_PROGRESS": "150"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -193,6 +193,7 @@ paths:
                 selesai: { type: [string, "null"], format: date }
                 prioritas: { $ref: "#/components/schemas/Priority" }
                 pemilik_id: { type: string, format: uuid, description: Harus anggota manager }
+                portfolio_id: { type: [string, "null"], format: uuid, description: null melepas dari portofolio }
       responses:
         "200":
           description: OK
@@ -203,6 +204,136 @@ paths:
         "404": { description: Tidak ada atau tidak punya akses }
         "409": { description: project_archived }
         "422": { description: validation }
+  /projects/{id}/status-manual:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectID" }
+    put:
+      summary: Timpa status health proyek (Admin dan PMO), alasan wajib
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status, alasan]
+              properties:
+                status: { $ref: "#/components/schemas/Health" }
+                alasan: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "204": { description: Disimpan; tercatat di audit (timpa_status) }
+        "403": { description: Bukan Admin atau PMO }
+        "404": { description: not_found }
+        "409": { description: project_archived }
+        "422": { description: validation }
+    delete:
+      summary: Kembalikan status health ke perhitungan otomatis (Admin dan PMO)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus; tercatat di audit (hapus_timpa_status) }
+        "403": { description: Bukan Admin atau PMO }
+        "409": { description: project_archived }
+  /portfolios:
+    get:
+      summary: Daftar portofolio (semua pengguna login)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Portfolio" } }
+    post:
+      summary: Buat portofolio (Admin dan PMO)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama]
+              properties:
+                nama: { type: string, maxLength: 200 }
+      responses:
+        "201":
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Portfolio" }
+        "403": { description: Bukan Admin atau PMO }
+        "409": { description: "portfolio_exists (nama sama, tanpa membedakan huruf besar/kecil)" }
+        "422": { description: validation }
+  /portfolios/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      summary: Ganti nama portofolio (Admin dan PMO)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [nama]
+              properties:
+                nama: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Portfolio" }
+        "403": { description: Bukan Admin atau PMO }
+        "404": { description: not_found }
+        "409": { description: portfolio_exists }
+    delete:
+      summary: Hapus portofolio; proyeknya dilepas, tidak dihapus (Admin dan PMO)
+      parameters: [{ $ref: "#/components/parameters/CSRF" }]
+      responses:
+        "204": { description: Dihapus }
+        "403": { description: Bukan Admin atau PMO }
+        "404": { description: not_found }
+  /portfolio:
+    get:
+      summary: Dasbor portofolio (progres, prioritas, health) untuk proyek aktif yang dapat dilihat
+      description: |
+        Admin dan PMO melihat semua proyek aktif; pengguna lain proyek tempat ia
+        menjadi anggota. Health dihitung saat diminta (docs/SPEC.md bagian 5 dan M5).
+      parameters:
+        - { name: prioritas, in: query, description: "Dipisah koma, mis. tinggi,kritis", schema: { type: string } }
+        - { name: pemilik, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, description: "Health efektif, dipisah koma", schema: { type: string } }
+        - { name: portofolio, in: query, description: 'UUID portofolio atau "tanpa"', schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PortfolioDashboard" }
+        "400": { description: Filter tidak valid }
+  /portfolio/projects/{id}/risks:
+    get:
+      summary: Item berisiko satu proyek beserta alasan per aturan (hak baca proyek)
+      parameters:
+        - { $ref: "#/components/parameters/ProjectID" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id: { type: string, format: uuid }
+                  items: { type: array, items: { $ref: "#/components/schemas/RiskItem" } }
+        "404": { description: not_found }
   /projects/{id}/archive:
     post:
       summary: Arsipkan proyek (manager efektif). Proyek arsip hanya-baca.
@@ -995,9 +1126,83 @@ components:
         dibuat_pada: { type: string, format: date-time }
         diubah_pada: { type: string, format: date-time }
         diarsipkan_pada: { type: [string, "null"], format: date-time }
+        portfolio_id: { type: [string, "null"], format: uuid }
+        portfolio_nama: { type: [string, "null"], description: Hanya pada GET /projects/{id} }
         peran_saya:
           $ref: "#/components/schemas/ProjectRole"
           description: Hak efektif pengguna yang meminta
+    Health:
+      type: string
+      enum: [hijau, kuning, merah]
+    RiskRule:
+      type: string
+      enum: [lewat_tenggat, tenggat_dekat, tanpa_penanggung_jawab, predecessor_terlambat, melewati_tenggat_proyek]
+    Portfolio:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        jumlah_proyek: { type: integer, description: Proyek aktif di portofolio ini }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+    ProjectHealth:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+        pemilik_id: { type: string, format: uuid }
+        pemilik_nama: { type: string }
+        prioritas: { $ref: "#/components/schemas/Priority" }
+        mulai: { type: [string, "null"], format: date }
+        selesai: { type: [string, "null"], format: date }
+        portfolio_id: { type: [string, "null"], format: uuid }
+        portfolio_nama: { type: [string, "null"] }
+        progres: { type: [number, "null"], description: "Rata-rata tertimbang durasi hari kerja; null bila tanpa item" }
+        progres_rencana: { type: [number, "null"], description: Hanya item berjadwal }
+        progres_jadwal: { type: [number, "null"], description: Progres aktual pada item berjadwal (pembanding rencana) }
+        jumlah_item: { type: integer }
+        item_berisiko: { type: integer }
+        per_aturan: { type: object, additionalProperties: { type: integer }, description: Kunci RiskRule }
+        kritis_terlambat: { type: integer }
+        health: { $ref: "#/components/schemas/Health", description: Efektif (manual bila ada) }
+        health_otomatis: { $ref: "#/components/schemas/Health" }
+        health_alasan: { type: array, items: { type: string } }
+        status_manual:
+          type: [object, "null"]
+          properties:
+            status: { $ref: "#/components/schemas/Health" }
+            alasan: { type: string }
+            oleh_nama: { type: string }
+            pada: { type: string, format: date-time }
+        peringatan: { type: array, items: { type: string } }
+    PortfolioDashboard:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ProjectHealth" } }
+        ambang:
+          type: object
+          properties:
+            tenggat_dekat_hari: { type: integer }
+            tenggat_dekat_progres: { type: integer }
+            kuning_persen: { type: integer }
+            merah_persen: { type: integer }
+            tertinggal_poin: { type: integer }
+        hari_ini: { type: string, format: date }
+    RiskItem:
+      type: object
+      properties:
+        item_id: { type: string, format: uuid }
+        board_id: { type: string, format: uuid }
+        board_nama: { type: string }
+        judul: { type: string }
+        kritis: { type: boolean }
+        alasan:
+          type: array
+          items:
+            type: object
+            properties:
+              kode: { $ref: "#/components/schemas/RiskRule" }
+              pesan: { type: string }
     ColumnType:
       type: string
       enum: [text, status, person, date, timeline, number, progress, priority, dependency]

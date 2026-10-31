@@ -37,7 +37,108 @@ func (h *Handler) Routes(r chi.Router) {
 		r.Post("/members", h.addMember)
 		r.Patch("/members/{userId}", h.updateMember)
 		r.Delete("/members/{userId}", h.removeMember)
+		r.Put("/status-manual", h.setManualStatus)
+		r.Delete("/status-manual", h.clearManualStatus)
 	})
+}
+
+// PortfolioRoutes dipasang di /api/v1/portfolios.
+func (h *Handler) PortfolioRoutes(r chi.Router) {
+	r.Get("/", h.listPortfolios)
+	r.Post("/", h.createPortfolio)
+	r.Patch("/{id}", h.renamePortfolio)
+	r.Delete("/{id}", h.deletePortfolio)
+}
+
+func (h *Handler) listPortfolios(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.ListPortfolios(r.Context())
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": out})
+}
+
+func (h *Handler) createPortfolio(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Nama string `json:"nama"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	p, err := h.svc.CreatePortfolio(r.Context(), actor, in.Nama, meta)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusCreated, p)
+}
+
+func (h *Handler) renamePortfolio(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	var in struct {
+		Nama string `json:"nama"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	p, err := h.svc.RenamePortfolio(r.Context(), actor, id, in.Nama, meta)
+	if err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, p)
+}
+
+func (h *Handler) deletePortfolio(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	if err := h.svc.DeletePortfolio(r.Context(), actor, id, meta); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) setManualStatus(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	var in struct {
+		Status string `json:"status"`
+		Alasan string `json:"alasan"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	if err := h.svc.SetManualStatus(r.Context(), actor, id, in.Status, in.Alasan, meta); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) clearManualStatus(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidParam(w, r, "id")
+	if !ok {
+		return
+	}
+	actor, meta := actorAndMeta(r)
+	if err := h.svc.ClearManualStatus(r.Context(), actor, id, meta); err != nil {
+		h.writeErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func actorAndMeta(r *http.Request) (auth.Principal, auth.RequestMeta) {
@@ -62,6 +163,13 @@ func (h *Handler) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, ErrPortfolioNotFound):
+		httpx.WriteError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, ErrPortfolioExists):
+		httpx.WriteError(w, http.StatusConflict, "portfolio_exists", err.Error())
+	case errors.Is(err, ErrPortfolioName), errors.Is(err, ErrInvalidPortfolio), errors.Is(err, ErrInvalidHealthStatus),
+		errors.Is(err, ErrInvalidReason):
+		httpx.WriteError(w, http.StatusUnprocessableEntity, "validation", err.Error())
 	case errors.Is(err, ErrMemberNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "member_not_found", err.Error())
 	case errors.Is(err, ErrForbidden):
@@ -162,6 +270,8 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		Selesai   httpx.Optional[Date]      `json:"selesai"`
 		Prioritas httpx.Optional[string]    `json:"prioritas"`
 		PemilikID httpx.Optional[uuid.UUID] `json:"pemilik_id"`
+		// Project Manager proyek boleh memilih portofolio (keputusan M5).
+		PortfolioID httpx.Optional[uuid.UUID] `json:"portfolio_id"`
 	}
 	if !decode(w, r, &in) {
 		return

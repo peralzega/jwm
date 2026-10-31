@@ -15,9 +15,10 @@ LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = u.id
 WHERE u.id = @user_id AND p.id = @project_id;
 
 -- name: GetProjectView :one
-SELECT p.*, o.nama AS pemilik_nama
+SELECT p.*, o.nama AS pemilik_nama, pf.nama AS portfolio_nama
 FROM projects p
 JOIN users o ON o.id = p.pemilik_id
+LEFT JOIN portfolios pf ON pf.id = p.portfolio_id
 WHERE p.id = $1;
 
 -- name: ListAllProjects :many
@@ -38,7 +39,7 @@ ORDER BY lower(p.nama), p.id;
 
 -- name: UpdateProject :one
 UPDATE projects
-SET nama = $2, pemilik_id = $3, mulai = $4, selesai = $5, prioritas = $6, diubah_pada = now()
+SET nama = $2, pemilik_id = $3, mulai = $4, selesai = $5, prioritas = $6, portfolio_id = $7, diubah_pada = now()
 WHERE id = $1
 RETURNING *;
 

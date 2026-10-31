@@ -58,7 +58,7 @@ func (q *Queries) CountProjectManagers(ctx context.Context, projectID uuid.UUID)
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (nama, pemilik_id, mulai, selesai, prioritas, dibuat_oleh)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada
+RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
 `
 
 type CreateProjectParams struct {
@@ -94,6 +94,9 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.DibuatPada,
 		&i.DiubahPada,
 		&i.DiarsipkanPada,
+		&i.StatusManualAlasan,
+		&i.StatusManualOleh,
+		&i.StatusManualPada,
 	)
 	return i, err
 }
@@ -149,7 +152,7 @@ func (q *Queries) GetProjectAccess(ctx context.Context, arg GetProjectAccessPara
 }
 
 const getProjectForUpdate = `-- name: GetProjectForUpdate :one
-SELECT id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada FROM projects WHERE id = $1 FOR UPDATE
+SELECT id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada FROM projects WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetProjectForUpdate(ctx context.Context, id uuid.UUID) (Project, error) {
@@ -169,6 +172,9 @@ func (q *Queries) GetProjectForUpdate(ctx context.Context, id uuid.UUID) (Projec
 		&i.DibuatPada,
 		&i.DiubahPada,
 		&i.DiarsipkanPada,
+		&i.StatusManualAlasan,
+		&i.StatusManualOleh,
+		&i.StatusManualPada,
 	)
 	return i, err
 }
@@ -196,27 +202,32 @@ func (q *Queries) GetProjectMember(ctx context.Context, arg GetProjectMemberPara
 }
 
 const getProjectView = `-- name: GetProjectView :one
-SELECT p.id, p.portfolio_id, p.nama, p.pemilik_id, p.mulai, p.selesai, p.prioritas, p.status_manual, p.anggaran, p.dibuat_oleh, p.dibuat_pada, p.diubah_pada, p.diarsipkan_pada, o.nama AS pemilik_nama
+SELECT p.id, p.portfolio_id, p.nama, p.pemilik_id, p.mulai, p.selesai, p.prioritas, p.status_manual, p.anggaran, p.dibuat_oleh, p.dibuat_pada, p.diubah_pada, p.diarsipkan_pada, p.status_manual_alasan, p.status_manual_oleh, p.status_manual_pada, o.nama AS pemilik_nama, pf.nama AS portfolio_nama
 FROM projects p
 JOIN users o ON o.id = p.pemilik_id
+LEFT JOIN portfolios pf ON pf.id = p.portfolio_id
 WHERE p.id = $1
 `
 
 type GetProjectViewRow struct {
-	ID             uuid.UUID
-	PortfolioID    *uuid.UUID
-	Nama           string
-	PemilikID      uuid.UUID
-	Mulai          pgtype.Date
-	Selesai        pgtype.Date
-	Prioritas      string
-	StatusManual   *string
-	Anggaran       pgtype.Numeric
-	DibuatOleh     uuid.UUID
-	DibuatPada     time.Time
-	DiubahPada     time.Time
-	DiarsipkanPada *time.Time
-	PemilikNama    string
+	ID                 uuid.UUID
+	PortfolioID        *uuid.UUID
+	Nama               string
+	PemilikID          uuid.UUID
+	Mulai              pgtype.Date
+	Selesai            pgtype.Date
+	Prioritas          string
+	StatusManual       *string
+	Anggaran           pgtype.Numeric
+	DibuatOleh         uuid.UUID
+	DibuatPada         time.Time
+	DiubahPada         time.Time
+	DiarsipkanPada     *time.Time
+	StatusManualAlasan *string
+	StatusManualOleh   *uuid.UUID
+	StatusManualPada   *time.Time
+	PemilikNama        string
+	PortfolioNama      *string
 }
 
 func (q *Queries) GetProjectView(ctx context.Context, id uuid.UUID) (GetProjectViewRow, error) {
@@ -236,13 +247,17 @@ func (q *Queries) GetProjectView(ctx context.Context, id uuid.UUID) (GetProjectV
 		&i.DibuatPada,
 		&i.DiubahPada,
 		&i.DiarsipkanPada,
+		&i.StatusManualAlasan,
+		&i.StatusManualOleh,
+		&i.StatusManualPada,
 		&i.PemilikNama,
+		&i.PortfolioNama,
 	)
 	return i, err
 }
 
 const listAllProjects = `-- name: ListAllProjects :many
-SELECT p.id, p.portfolio_id, p.nama, p.pemilik_id, p.mulai, p.selesai, p.prioritas, p.status_manual, p.anggaran, p.dibuat_oleh, p.dibuat_pada, p.diubah_pada, p.diarsipkan_pada, o.nama AS pemilik_nama, pm.peran_proyek
+SELECT p.id, p.portfolio_id, p.nama, p.pemilik_id, p.mulai, p.selesai, p.prioritas, p.status_manual, p.anggaran, p.dibuat_oleh, p.dibuat_pada, p.diubah_pada, p.diarsipkan_pada, p.status_manual_alasan, p.status_manual_oleh, p.status_manual_pada, o.nama AS pemilik_nama, pm.peran_proyek
 FROM projects p
 JOIN users o ON o.id = p.pemilik_id
 LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
@@ -256,21 +271,24 @@ type ListAllProjectsParams struct {
 }
 
 type ListAllProjectsRow struct {
-	ID             uuid.UUID
-	PortfolioID    *uuid.UUID
-	Nama           string
-	PemilikID      uuid.UUID
-	Mulai          pgtype.Date
-	Selesai        pgtype.Date
-	Prioritas      string
-	StatusManual   *string
-	Anggaran       pgtype.Numeric
-	DibuatOleh     uuid.UUID
-	DibuatPada     time.Time
-	DiubahPada     time.Time
-	DiarsipkanPada *time.Time
-	PemilikNama    string
-	PeranProyek    *string
+	ID                 uuid.UUID
+	PortfolioID        *uuid.UUID
+	Nama               string
+	PemilikID          uuid.UUID
+	Mulai              pgtype.Date
+	Selesai            pgtype.Date
+	Prioritas          string
+	StatusManual       *string
+	Anggaran           pgtype.Numeric
+	DibuatOleh         uuid.UUID
+	DibuatPada         time.Time
+	DiubahPada         time.Time
+	DiarsipkanPada     *time.Time
+	StatusManualAlasan *string
+	StatusManualOleh   *uuid.UUID
+	StatusManualPada   *time.Time
+	PemilikNama        string
+	PeranProyek        *string
 }
 
 func (q *Queries) ListAllProjects(ctx context.Context, arg ListAllProjectsParams) ([]ListAllProjectsRow, error) {
@@ -296,6 +314,9 @@ func (q *Queries) ListAllProjects(ctx context.Context, arg ListAllProjectsParams
 			&i.DibuatPada,
 			&i.DiubahPada,
 			&i.DiarsipkanPada,
+			&i.StatusManualAlasan,
+			&i.StatusManualOleh,
+			&i.StatusManualPada,
 			&i.PemilikNama,
 			&i.PeranProyek,
 		); err != nil {
@@ -310,7 +331,7 @@ func (q *Queries) ListAllProjects(ctx context.Context, arg ListAllProjectsParams
 }
 
 const listMemberProjects = `-- name: ListMemberProjects :many
-SELECT p.id, p.portfolio_id, p.nama, p.pemilik_id, p.mulai, p.selesai, p.prioritas, p.status_manual, p.anggaran, p.dibuat_oleh, p.dibuat_pada, p.diubah_pada, p.diarsipkan_pada, o.nama AS pemilik_nama, pm.peran_proyek
+SELECT p.id, p.portfolio_id, p.nama, p.pemilik_id, p.mulai, p.selesai, p.prioritas, p.status_manual, p.anggaran, p.dibuat_oleh, p.dibuat_pada, p.diubah_pada, p.diarsipkan_pada, p.status_manual_alasan, p.status_manual_oleh, p.status_manual_pada, o.nama AS pemilik_nama, pm.peran_proyek
 FROM projects p
 JOIN users o ON o.id = p.pemilik_id
 JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
@@ -324,21 +345,24 @@ type ListMemberProjectsParams struct {
 }
 
 type ListMemberProjectsRow struct {
-	ID             uuid.UUID
-	PortfolioID    *uuid.UUID
-	Nama           string
-	PemilikID      uuid.UUID
-	Mulai          pgtype.Date
-	Selesai        pgtype.Date
-	Prioritas      string
-	StatusManual   *string
-	Anggaran       pgtype.Numeric
-	DibuatOleh     uuid.UUID
-	DibuatPada     time.Time
-	DiubahPada     time.Time
-	DiarsipkanPada *time.Time
-	PemilikNama    string
-	PeranProyek    string
+	ID                 uuid.UUID
+	PortfolioID        *uuid.UUID
+	Nama               string
+	PemilikID          uuid.UUID
+	Mulai              pgtype.Date
+	Selesai            pgtype.Date
+	Prioritas          string
+	StatusManual       *string
+	Anggaran           pgtype.Numeric
+	DibuatOleh         uuid.UUID
+	DibuatPada         time.Time
+	DiubahPada         time.Time
+	DiarsipkanPada     *time.Time
+	StatusManualAlasan *string
+	StatusManualOleh   *uuid.UUID
+	StatusManualPada   *time.Time
+	PemilikNama        string
+	PeranProyek        string
 }
 
 func (q *Queries) ListMemberProjects(ctx context.Context, arg ListMemberProjectsParams) ([]ListMemberProjectsRow, error) {
@@ -364,6 +388,9 @@ func (q *Queries) ListMemberProjects(ctx context.Context, arg ListMemberProjects
 			&i.DibuatPada,
 			&i.DiubahPada,
 			&i.DiarsipkanPada,
+			&i.StatusManualAlasan,
+			&i.StatusManualOleh,
+			&i.StatusManualPada,
 			&i.PemilikNama,
 			&i.PeranProyek,
 		); err != nil {
@@ -427,7 +454,7 @@ const setProjectArchived = `-- name: SetProjectArchived :one
 UPDATE projects
 SET diarsipkan_pada = CASE WHEN $1::boolean THEN now() ELSE NULL END, diubah_pada = now()
 WHERE id = $2
-RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada
+RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
 `
 
 type SetProjectArchivedParams struct {
@@ -452,24 +479,28 @@ func (q *Queries) SetProjectArchived(ctx context.Context, arg SetProjectArchived
 		&i.DibuatPada,
 		&i.DiubahPada,
 		&i.DiarsipkanPada,
+		&i.StatusManualAlasan,
+		&i.StatusManualOleh,
+		&i.StatusManualPada,
 	)
 	return i, err
 }
 
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects
-SET nama = $2, pemilik_id = $3, mulai = $4, selesai = $5, prioritas = $6, diubah_pada = now()
+SET nama = $2, pemilik_id = $3, mulai = $4, selesai = $5, prioritas = $6, portfolio_id = $7, diubah_pada = now()
 WHERE id = $1
-RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada
+RETURNING id, portfolio_id, nama, pemilik_id, mulai, selesai, prioritas, status_manual, anggaran, dibuat_oleh, dibuat_pada, diubah_pada, diarsipkan_pada, status_manual_alasan, status_manual_oleh, status_manual_pada
 `
 
 type UpdateProjectParams struct {
-	ID        uuid.UUID
-	Nama      string
-	PemilikID uuid.UUID
-	Mulai     pgtype.Date
-	Selesai   pgtype.Date
-	Prioritas string
+	ID          uuid.UUID
+	Nama        string
+	PemilikID   uuid.UUID
+	Mulai       pgtype.Date
+	Selesai     pgtype.Date
+	Prioritas   string
+	PortfolioID *uuid.UUID
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -480,6 +511,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.Mulai,
 		arg.Selesai,
 		arg.Prioritas,
+		arg.PortfolioID,
 	)
 	var i Project
 	err := row.Scan(
@@ -496,6 +528,9 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.DibuatPada,
 		&i.DiubahPada,
 		&i.DiarsipkanPada,
+		&i.StatusManualAlasan,
+		&i.StatusManualOleh,
+		&i.StatusManualPada,
 	)
 	return i, err
 }

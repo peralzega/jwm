@@ -1,10 +1,13 @@
 package schedule
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
+
+	"jwm/internal/db/gen"
 )
 
 // Tanggal diperlakukan sebagai tanggal murni: string YYYY-MM-DD dari API dan
@@ -168,3 +171,33 @@ func (w *workIndex) dayAt(p int) (int, error) {
 	}
 	return w.days[base+p], nil
 }
+
+// ParseDay mengubah YYYY-MM-DD menjadi nomor hari sejak 1970-01-01.
+func ParseDay(s string) (int, error) { return parseDay(s) }
+
+// FormatDay mengubah nomor hari menjadi YYYY-MM-DD.
+func FormatDay(day int) string { return formatDay(day) }
+
+// DayOf memberi nomor hari dari tanggal kalender t (jam dan zona waktu diabaikan).
+func DayOf(t time.Time) int {
+	return int(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).Unix() / 86400)
+}
+
+// WorkdaysIn menghitung hari kerja dalam [from, to). Nol bila to <= from.
+func (c *Calendar) WorkdaysIn(from, to int) int {
+	n := 0
+	for d := from; d < to; d++ {
+		if c.IsWorkday(d) {
+			n++
+		}
+	}
+	return n
+}
+
+// LoadCalendar membaca seluruh work_calendar.
+func LoadCalendar(ctx context.Context, q *dbgen.Queries) (*Calendar, error) {
+	return loadCalendar(ctx, q)
+}
+
+// ParseTimeline membaca nilai kolom timeline; nil bila kosong atau tidak valid.
+func ParseTimeline(raw []byte) *Span { return parseTimeline(raw) }

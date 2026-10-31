@@ -56,24 +56,28 @@ type Project struct {
 	DibuatPada     time.Time  `json:"dibuat_pada"`
 	DiubahPada     time.Time  `json:"diubah_pada"`
 	DiarsipkanPada *time.Time `json:"diarsipkan_pada"`
+	PortfolioID    *uuid.UUID `json:"portfolio_id"`
+	// PortfolioNama hanya diisi GET /projects/{id}.
+	PortfolioNama *string `json:"portfolio_nama,omitempty"`
 	// PeranSaya adalah hak efektif pengguna yang meminta.
 	PeranSaya Role `json:"peran_saya"`
 }
 
 // snapshot adalah isi audit proyek (tanpa field turunan).
 type snapshot struct {
-	Nama      string     `json:"nama"`
-	PemilikID uuid.UUID  `json:"pemilik_id"`
-	Mulai     *Date      `json:"mulai"`
-	Selesai   *Date      `json:"selesai"`
-	Prioritas string     `json:"prioritas"`
-	Arsip     *time.Time `json:"diarsipkan_pada,omitempty"`
+	Nama        string     `json:"nama"`
+	PemilikID   uuid.UUID  `json:"pemilik_id"`
+	Mulai       *Date      `json:"mulai"`
+	Selesai     *Date      `json:"selesai"`
+	Prioritas   string     `json:"prioritas"`
+	PortfolioID *uuid.UUID `json:"portfolio_id"`
+	Arsip       *time.Time `json:"diarsipkan_pada,omitempty"`
 }
 
 func snapshotOf(p dbgen.Project) snapshot {
 	return snapshot{
 		Nama: p.Nama, PemilikID: p.PemilikID, Mulai: fromPgDate(p.Mulai), Selesai: fromPgDate(p.Selesai),
-		Prioritas: p.Prioritas, Arsip: p.DiarsipkanPada,
+		Prioritas: p.Prioritas, PortfolioID: p.PortfolioID, Arsip: p.DiarsipkanPada,
 	}
 }
 
@@ -231,7 +235,8 @@ func toProject(p dbgen.Project, pemilikNama string, peran Role) Project {
 	return Project{
 		ID: p.ID, Nama: p.Nama, PemilikID: p.PemilikID, PemilikNama: pemilikNama,
 		Mulai: fromPgDate(p.Mulai), Selesai: fromPgDate(p.Selesai), Prioritas: p.Prioritas,
-		DibuatPada: p.DibuatPada, DiubahPada: p.DiubahPada, DiarsipkanPada: p.DiarsipkanPada, PeranSaya: peran,
+		DibuatPada: p.DibuatPada, DiubahPada: p.DiubahPada, DiarsipkanPada: p.DiarsipkanPada,
+		PortfolioID: p.PortfolioID, PeranSaya: peran,
 	}
 }
 
@@ -250,7 +255,9 @@ func (s *Service) Get(ctx context.Context, actor auth.Principal, id uuid.UUID) (
 		Selesai: v.Selesai, Prioritas: v.Prioritas, DibuatPada: v.DibuatPada, DiubahPada: v.DiubahPada,
 		DiarsipkanPada: v.DiarsipkanPada,
 	}
-	return toProject(p, v.PemilikNama, eff), nil
+	out := toProject(p, v.PemilikNama, eff)
+	out.PortfolioNama = v.PortfolioNama
+	return out, nil
 }
 
 // List mengembalikan proyek yang dapat dilihat pelaku. Admin dan PMO melihat semua.
@@ -266,6 +273,7 @@ func (s *Service) List(ctx context.Context, actor auth.Principal, arsip bool) ([
 			p := dbgen.Project{
 				ID: r.ID, Nama: r.Nama, PemilikID: r.PemilikID, Mulai: r.Mulai, Selesai: r.Selesai,
 				Prioritas: r.Prioritas, DibuatPada: r.DibuatPada, DiubahPada: r.DiubahPada, DiarsipkanPada: r.DiarsipkanPada,
+				PortfolioID: r.PortfolioID,
 			}
 			out = append(out, toProject(p, r.PemilikNama, Effective(g, true, memberRole(r.PeranProyek))))
 		}
@@ -283,6 +291,7 @@ func (s *Service) List(ctx context.Context, actor auth.Principal, arsip bool) ([
 		p := dbgen.Project{
 			ID: r.ID, Nama: r.Nama, PemilikID: r.PemilikID, Mulai: r.Mulai, Selesai: r.Selesai,
 			Prioritas: r.Prioritas, DibuatPada: r.DibuatPada, DiubahPada: r.DiubahPada, DiarsipkanPada: r.DiarsipkanPada,
+			PortfolioID: r.PortfolioID,
 		}
 		out = append(out, toProject(p, r.PemilikNama, eff))
 	}
@@ -297,6 +306,8 @@ type UpdateInput struct {
 	Selesai   httpx.Optional[Date]
 	Prioritas httpx.Optional[string]
 	PemilikID httpx.Optional[uuid.UUID]
+	// PortfolioID null melepas proyek dari portofolionya.
+	PortfolioID httpx.Optional[uuid.UUID]
 }
 
 // Update mengubah proyek. Hanya manager efektif.
@@ -309,7 +320,19 @@ func (s *Service) Update(ctx context.Context, actor auth.Principal, id uuid.UUID
 		}
 		p := dbgen.UpdateProjectParams{
 			ID: id, Nama: before.Nama, PemilikID: before.PemilikID, Mulai: before.Mulai,
-			Selesai: before.Selesai, Prioritas: before.Prioritas,
+			Selesai: before.Selesai, Prioritas: before.Prioritas, PortfolioID: before.PortfolioID,
+		}
+		if in.PortfolioID.Set {
+			p.PortfolioID = nil
+			if !in.PortfolioID.Null {
+				if _, err := q.GetPortfolio(ctx, in.PortfolioID.Value); errors.Is(err, pgx.ErrNoRows) {
+					return ErrInvalidPortfolio
+				} else if err != nil {
+					return fmt.Errorf("baca portofolio: %w", err)
+				}
+				id := in.PortfolioID.Value
+				p.PortfolioID = &id
+			}
 		}
 		if in.Nama.Set {
 			if in.Nama.Null {
@@ -345,6 +368,10 @@ func (s *Service) Update(ctx context.Context, actor auth.Principal, id uuid.UUID
 		}
 
 		after, err := q.UpdateProject(ctx, p)
+		if isForeignKeyViolation(err) {
+			// Portofolio dihapus bersamaan.
+			return ErrInvalidPortfolio
+		}
 		if err != nil {
 			return fmt.Errorf("ubah proyek: %w", err)
 		}
